@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import { HumanMessage } from "@langchain/core/messages";
-import { geminiBase } from "../../shared/chat-model";
+import { geminiBase } from "../../shared/utils/models/vertexai";
 
 const main = async () => {
   // Path to your local image

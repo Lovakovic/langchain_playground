@@ -1,0 +1,78 @@
+import {tool} from "@langchain/core/tools";
+import {geminiBase} from "../../shared/utils/models/vertexai";
+import {HumanMessage, ToolMessage} from "@langchain/core/messages";
+import {convertJSONSchemaDraft7ToZod} from "../../shared/utils/json-schema-to-zod/json7ToZodSchema";
+
+// 1. Tool creation: Define the multiply tool
+const multiply = tool(
+  async ({ a, b }: { a: number; b: number }) => {
+    console.log(`Using tool: multiply with args: { a: ${a}, b: ${b} }`);
+    return a * b;
+  },
+  {
+    name: "multiply",
+    description: "Multiply two numbers",
+    schema: convertJSONSchemaDraft7ToZod({
+      type: 'object',
+      properties: {
+        a: {
+          type: 'number',
+          description: 'The first number to multiply',
+        },
+        b: {
+          type: 'number',
+          description: 'The second number to multiply',
+        },
+      },
+      required: ["a", "b"],
+    }),
+  }
+);
+
+const main = async () => {
+  const model = geminiBase({ streaming: false });
+  const modelWithTools = model.bindTools([multiply]);
+
+  const userInput = "What is 12 multiplied by 7?";
+  const humanMessage = new HumanMessage(userInput);
+  console.log(`Starting with input: "${userInput}"`);
+
+  // First call to the model
+  const firstResponse = await modelWithTools.invoke([humanMessage]);
+
+  console.log("\nModel response (raw):");
+  console.dir(firstResponse, { depth: null });
+
+  if (firstResponse.tool_calls && firstResponse.tool_calls.length > 0) {
+    const toolCall = firstResponse.tool_calls[0];
+    if (toolCall.name === "multiply") {
+      try {
+        const toolResult = await multiply.invoke(toolCall.args as { a: number; b: number });
+
+        const toolMessage = new ToolMessage({
+          content: toolResult.toString(), 
+          tool_call_id: toolCall.id ?? "invalid_tool_call_id",
+        });
+
+        // Second call to the model, including the tool result
+        const finalResponse = await modelWithTools.invoke([
+          humanMessage, // Original user input
+          firstResponse, // AI message with the tool call
+          toolMessage    // Tool message with the tool result
+        ]);
+
+        console.log("\nFinal model response after tool execution:");
+        console.log(finalResponse.content);
+
+      } catch (error) {
+        console.error(`Error executing tool ${toolCall.name}:`, error);
+        console.log("\nFinal result: Error during tool execution.");
+      }
+    }
+  } else {
+    console.log("\nFinal model response (no tools called):");
+    console.log(firstResponse.content);
+  }
+};
+
+main().catch(console.error);

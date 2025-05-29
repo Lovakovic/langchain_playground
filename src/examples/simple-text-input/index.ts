@@ -1,4 +1,4 @@
-import {geminiBase} from "../../shared/chat-model";
+import {geminiBase} from "../../shared/utils/models/vertexai";
 import {HumanMessage} from "@langchain/core/messages";
 
 const main = async () => {
