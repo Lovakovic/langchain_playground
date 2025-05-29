@@ -1,4 +1,21 @@
 {
   "name": "langchain_playground",
-  "packageManager": "yarn@4.9.1"
+  "packageManager": "yarn@4.3.1",
+  "scripts": {
+    "build": "tsc",
+    "serve": "node dist/index.js",
+    "start": "tsc && node dist/index.js",
+    "dev": "tsc -w & nodemon dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "typescript": "*"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.57",
+    "@langchain/google-vertexai": "^0.2.10",
+    "@langchain/langgraph": "^0.2.74",
+    "dotenv": "^16.5.0",
+    "ts-node": "^10.9.2"
+  }
 }
