@@ -2,7 +2,6 @@ import {tool} from "@langchain/core/tools";
 import {geminiBase} from "../../shared/utils/models/vertexai";
 import {HumanMessage, ToolMessage} from "@langchain/core/messages";
 import {convertJSONSchemaDraft7ToZod} from "../../shared/utils/json-schema-to-zod/json7ToZodSchema";
-import {gptBase} from "../../shared/utils/models/openai";
 
 // 1. Tool creation: Define the multiply tool
 const multiply = tool(
@@ -32,7 +31,6 @@ const multiply = tool(
 
 const main = async () => {
   const gemini = geminiBase({ streaming: false });
-  const gpt = gptBase({ streaming: false });
 
   // Vertex AI only supports "any" tool choice, so if we want to force the model to use a specific tool, we can set tool_choice to 'any' but only bind that one tool.
   const geminiWithForcedTool = gemini.bindTools(
@@ -41,10 +39,10 @@ const main = async () => {
   );
 
   // OpenAI supports more specific tool choices, so we can bind the tool and specify that it should be used.
-  const gptWithForcedTool = gpt.bindTools(
-    [multiply],
-    { tool_choice: { function: { name: 'multiply' }, type: 'function' } }
-  );
+  // const gptWithForcedTool = gpt.bindTools(
+  //   [multiply],
+  //   { tool_choice: { function: { name: 'multiply' }, type: 'function' } }
+  // );
 
   const userInput = "What is 12 multiplied by 7?";
   const humanMessage = new HumanMessage(userInput);
