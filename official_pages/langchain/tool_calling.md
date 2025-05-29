@@ -41,8 +41,8 @@ import { z } from "zod";
 
 const multiply = tool(
   ({ a, b }: { a: number; b: number }): number => {
-    return a * b;
-  },
+  return a * b;
+},
   {
     name: "multiply",
     description: "Multiply two numbers",
