@@ -17,3 +17,4 @@ node_modules
 .pnp.*
 /.env
 /src/playground/pdf_screenshot/output/
+/src/playground/pdf_to_json/output/
