@@ -11,9 +11,10 @@ A comprehensive reference for implementing and managing memory in LangGraph.js a
 5. [Deleting Messages](#deleting-messages)
 6. [Long-Term Memory (Cross-Thread)](#long-term-memory-cross-thread)
 7. [Memory Stores and Persistence](#memory-stores-and-persistence)
-8. [Advanced Memory Patterns](#advanced-memory-patterns)
-9. [Best Practices](#best-practices)
-10. [Troubleshooting](#troubleshooting)
+8. [Replay Functionality](#replay-functionality)
+9. [Advanced Memory Patterns](#advanced-memory-patterns)
+10. [Best Practices](#best-practices)
+11. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -784,6 +785,133 @@ class MemoryCollectionManager {
 
 ## Memory Stores and Persistence
 
+### Official Checkpointer Libraries
+
+LangGraph provides several official checkpointer implementations through standalone, installable libraries:
+
+#### 1. @langchain/langgraph-checkpoint (Built-in)
+
+The base interface for checkpointer savers and includes the in-memory implementation:
+
+```javascript
+import { MemorySaver } from "@langchain/langgraph";
+
+// Built-in memory saver for development and testing
+const checkpointer = new MemorySaver();
+
+// Use with your graph
+const graph = workflow.compile({ checkpointer });
+```
+
+This package includes:
+- `BaseCheckpointSaver` - The base interface all checkpointers implement
+- `SerializerProtocol` - Interface for serialization/deserialization
+- `MemorySaver` - In-memory implementation (included by default in LangGraph)
+
+#### 2. @langchain/langgraph-checkpoint-sqlite
+
+SQLite-based checkpointer ideal for local development and workflows:
+
+```bash
+npm install @langchain/langgraph-checkpoint-sqlite
+```
+
+```javascript
+import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
+import Database from "better-sqlite3";
+
+// Create SQLite checkpointer
+const db = new Database("./checkpoints.db");
+const checkpointer = new SqliteSaver(db);
+
+// Or use the convenience constructor
+const checkpointer = SqliteSaver.fromConnString("./checkpoints.db");
+
+// Use with your graph
+const graph = workflow.compile({ checkpointer });
+
+// Example usage
+const config = { configurable: { thread_id: "conversation_1" } };
+await graph.invoke({ messages: [/* ... */] }, config);
+```
+
+Features:
+- Persistent storage in SQLite database file
+- Ideal for local development and testing
+- Supports all checkpointing operations
+- Lightweight and easy to set up
+
+#### 3. @langchain/langgraph-checkpoint-postgres
+
+PostgreSQL-based checkpointer for production use:
+
+```bash
+npm install @langchain/langgraph-checkpoint-postgres
+```
+
+```javascript
+import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+import { Pool } from "pg";
+
+// Method 1: Using a connection pool
+const pool = new Pool({
+  connectionString: "postgresql://user:password@localhost:5432/dbname"
+});
+const checkpointer = new PostgresSaver(pool);
+
+// Method 2: Using connection string directly
+const checkpointer = await PostgresSaver.fromConnString(
+  "postgresql://user:password@localhost:5432/dbname"
+);
+
+// Method 3: With custom schema
+const checkpointer = new PostgresSaver(pool, {
+  schemaName: "langgraph_checkpoints" // default: "public"
+});
+
+// Initialize the database tables
+await checkpointer.setup();
+
+// Use with your graph
+const graph = workflow.compile({ checkpointer });
+```
+
+Features:
+- Production-ready with PostgreSQL backend
+- Used in LangGraph Cloud
+- Supports concurrent access
+- Scalable for high-volume applications
+- Automatic table creation with `setup()`
+
+#### Checkpointer Interface
+
+All checkpointers implement the `BaseCheckpointSaver` interface with these key methods:
+
+```javascript
+// Example of the checkpointer interface methods
+class CustomCheckpointer extends BaseCheckpointSaver {
+  // Store a checkpoint with its configuration and metadata
+  async put(config, checkpoint, metadata) {
+    // Implementation
+  }
+  
+  // Store intermediate writes linked to a checkpoint
+  async putWrites(config, writes, taskId) {
+    // Implementation for pending writes
+  }
+  
+  // Fetch a checkpoint tuple for a given configuration
+  async getTuple(config) {
+    // Returns checkpoint data for thread_id and checkpoint_id
+  }
+  
+  // List checkpoints matching configuration and filter criteria
+  async list(config, options) {
+    // Returns list of checkpoints for getStateHistory()
+  }
+}
+```
+
 ### InMemoryStore (Development)
 
 ```javascript
@@ -939,6 +1067,438 @@ class RedisStore {
     return true;
   }
 }
+```
+
+## Replay Functionality
+
+LangGraph's replay functionality allows you to re-execute a graph from any previous checkpoint, enabling powerful debugging, testing, and exploration capabilities.
+
+### Basic Replay from Checkpoint
+
+When invoking a graph with both a `thread_id` and a `checkpoint_id`, LangGraph will replay execution from that specific checkpoint:
+
+```javascript
+import { StateGraph, MemorySaver, Annotation } from "@langchain/langgraph";
+
+// Define state and graph
+const StateAnnotation = Annotation.Root({
+  messages: Annotation({
+    reducer: (x, y) => x.concat(y),
+    default: () => [],
+  }),
+  step: Annotation({
+    reducer: (x, y) => y,
+    default: () => 0,
+  }),
+});
+
+// Create nodes that track execution
+function step1(state) {
+  console.log("Executing step 1");
+  return { 
+    messages: [`Step 1 completed`],
+    step: 1 
+  };
+}
+
+function step2(state) {
+  console.log("Executing step 2");
+  return { 
+    messages: [`Step 2 completed`],
+    step: 2 
+  };
+}
+
+function step3(state) {
+  console.log("Executing step 3");
+  return { 
+    messages: [`Step 3 completed`],
+    step: 3 
+  };
+}
+
+// Build graph
+const workflow = new StateGraph(StateAnnotation)
+  .addNode("step1", step1)
+  .addNode("step2", step2)
+  .addNode("step3", step3)
+  .addEdge(START, "step1")
+  .addEdge("step1", "step2")
+  .addEdge("step2", "step3")
+  .addEdge("step3", END);
+
+const checkpointer = new MemorySaver();
+const graph = workflow.compile({ checkpointer });
+
+// Initial execution
+const config = { configurable: { thread_id: "replay_demo" } };
+await graph.invoke({ messages: [] }, config);
+
+// Get checkpoint history
+const history = [];
+for await (const state of graph.getStateHistory(config)) {
+  history.push({
+    checkpoint_id: state.config.configurable.checkpoint_id,
+    step: state.values.step,
+    messages: state.values.messages
+  });
+}
+
+console.log("Checkpoint history:", history);
+
+// Replay from a specific checkpoint
+const targetCheckpoint = history.find(h => h.step === 2);
+const replayConfig = {
+  configurable: {
+    thread_id: "replay_demo",
+    checkpoint_id: targetCheckpoint.checkpoint_id
+  }
+};
+
+// This will replay from step 2, only executing step 3
+console.log("\nReplaying from checkpoint...");
+await graph.invoke(null, replayConfig);
+```
+
+### Intelligent Replay Behavior
+
+LangGraph tracks which checkpoints have been executed and intelligently handles replay:
+
+```javascript
+// Demonstrate intelligent replay
+async function demonstrateReplay() {
+  const config = { configurable: { thread_id: "smart_replay" } };
+  
+  // Initial run
+  console.log("=== Initial Run ===");
+  await graph.invoke({ messages: [] }, config);
+  
+  // Get checkpoint after step 1
+  const history = [];
+  for await (const state of graph.getStateHistory(config)) {
+    history.push(state);
+  }
+  
+  const step1Checkpoint = history.find(
+    s => s.values.step === 1
+  )?.config.configurable.checkpoint_id;
+  
+  // Replay from step 1 checkpoint
+  console.log("\n=== Replay from Step 1 ===");
+  const replayConfig = {
+    configurable: {
+      thread_id: "smart_replay",
+      checkpoint_id: step1Checkpoint
+    }
+  };
+  
+  // Only step2 and step3 will execute - step1 is not re-executed
+  await graph.invoke(null, replayConfig);
+  
+  // Verify no duplicate execution
+  const finalHistory = await graph.getStateHistory(config);
+  console.log("Total checkpoints:", finalHistory.length);
+}
+```
+
+### Replay with State Modifications
+
+Combine replay with state updates to explore alternative execution paths:
+
+```javascript
+// Replay with modifications for "what-if" scenarios
+async function exploreAlternativePath() {
+  const config = { configurable: { thread_id: "exploration" } };
+  
+  // Original execution with a decision point
+  const decisionGraph = new StateGraph(Annotation.Root({
+    data: Annotation(),
+    decision: Annotation(),
+    outcome: Annotation(),
+  }))
+    .addNode("analyze", (state) => ({
+      data: "analyzed",
+      decision: state.data.includes("risk") ? "cautious" : "aggressive"
+    }))
+    .addNode("execute_cautious", (state) => ({
+      outcome: "safe but limited gains"
+    }))
+    .addNode("execute_aggressive", (state) => ({
+      outcome: "high risk, high reward"
+    }))
+    .addEdge(START, "analyze")
+    .addConditionalEdges("analyze", 
+      (state) => state.decision === "cautious" ? "execute_cautious" : "execute_aggressive"
+    )
+    .addEdge("execute_cautious", END)
+    .addEdge("execute_aggressive", END)
+    .compile({ checkpointer });
+  
+  // Original execution
+  await decisionGraph.invoke({ data: "market shows risk indicators" }, config);
+  
+  // Get checkpoint after analysis
+  const history = [];
+  for await (const state of decisionGraph.getStateHistory(config)) {
+    history.push(state);
+  }
+  
+  const analysisCheckpoint = history.find(
+    s => s.next.includes("execute_cautious")
+  );
+  
+  // Replay with modified decision
+  const alternativeConfig = {
+    configurable: {
+      thread_id: "exploration_alternative",
+      checkpoint_id: analysisCheckpoint.config.configurable.checkpoint_id
+    }
+  };
+  
+  // Modify state to explore aggressive path
+  await decisionGraph.updateState(alternativeConfig, {
+    decision: "aggressive"
+  });
+  
+  // Continue execution with modified state
+  const alternativeResult = await decisionGraph.invoke(null, alternativeConfig);
+  console.log("Alternative outcome:", alternativeResult);
+}
+```
+
+### Replay for Testing and Debugging
+
+Use replay functionality for comprehensive testing:
+
+```javascript
+class GraphTester {
+  constructor(graph, checkpointer) {
+    this.graph = graph;
+    this.checkpointer = checkpointer;
+  }
+  
+  async captureExecutionTrace(config) {
+    const trace = [];
+    
+    // Capture all state transitions
+    for await (const state of this.graph.getStateHistory(config)) {
+      trace.push({
+        checkpoint_id: state.config.configurable.checkpoint_id,
+        values: state.values,
+        next: state.next,
+        metadata: state.metadata
+      });
+    }
+    
+    return trace.reverse(); // Chronological order
+  }
+  
+  async replayWithAssertions(config, assertions) {
+    const results = [];
+    
+    for (const assertion of assertions) {
+      // Replay from specific checkpoint
+      const replayConfig = {
+        configurable: {
+          thread_id: config.configurable.thread_id,
+          checkpoint_id: assertion.checkpoint_id
+        }
+      };
+      
+      // Apply any state modifications
+      if (assertion.stateUpdates) {
+        await this.graph.updateState(replayConfig, assertion.stateUpdates);
+      }
+      
+      // Continue execution
+      const result = await this.graph.invoke(
+        assertion.input || null,
+        replayConfig
+      );
+      
+      // Verify assertions
+      const passed = assertion.validate(result);
+      results.push({
+        checkpoint: assertion.checkpoint_id,
+        passed,
+        result
+      });
+    }
+    
+    return results;
+  }
+  
+  async createReplayableTestCase(config) {
+    const trace = await this.captureExecutionTrace(config);
+    
+    return {
+      initial_input: trace[0].values,
+      checkpoints: trace.map(t => ({
+        checkpoint_id: t.checkpoint_id,
+        expected_state: t.values,
+        expected_next: t.next
+      })),
+      final_output: trace[trace.length - 1].values
+    };
+  }
+}
+
+// Usage example
+const tester = new GraphTester(graph, checkpointer);
+
+// Run test scenario
+const testConfig = { configurable: { thread_id: "test_1" } };
+await graph.invoke({ messages: ["test input"] }, testConfig);
+
+// Create replayable test case
+const testCase = await tester.createReplayableTestCase(testConfig);
+
+// Replay with different inputs
+const replayResults = await tester.replayWithAssertions(testConfig, [
+  {
+    checkpoint_id: testCase.checkpoints[1].checkpoint_id,
+    stateUpdates: { messages: ["modified input"] },
+    validate: (result) => result.messages.includes("modified")
+  }
+]);
+```
+
+### Replay Patterns for Production
+
+Implement replay patterns for production debugging and auditing:
+
+```javascript
+class ProductionReplayManager {
+  constructor(graph, checkpointer, logger) {
+    this.graph = graph;
+    this.checkpointer = checkpointer;
+    this.logger = logger;
+  }
+  
+  async createAuditTrail(threadId, startCheckpoint, endCheckpoint) {
+    const config = { configurable: { thread_id: threadId } };
+    const trail = [];
+    
+    // Get all checkpoints in range
+    for await (const state of this.graph.getStateHistory(config)) {
+      const checkpointId = state.config.configurable.checkpoint_id;
+      
+      if (checkpointId === endCheckpoint) {
+        trail.push(this.createAuditEntry(state));
+      } else if (trail.length > 0 || checkpointId === startCheckpoint) {
+        trail.push(this.createAuditEntry(state));
+        if (checkpointId === startCheckpoint) break;
+      }
+    }
+    
+    return trail.reverse();
+  }
+  
+  createAuditEntry(state) {
+    return {
+      checkpoint_id: state.config.configurable.checkpoint_id,
+      timestamp: state.created_at,
+      state_summary: this.summarizeState(state.values),
+      next_nodes: state.next,
+      metadata: state.metadata
+    };
+  }
+  
+  summarizeState(values) {
+    // Create a safe summary for audit logs
+    return {
+      message_count: values.messages?.length || 0,
+      last_message_preview: values.messages?.slice(-1)[0]?.content?.substring(0, 100),
+      custom_fields: Object.keys(values).filter(k => k !== 'messages')
+    };
+  }
+  
+  async debugFailedExecution(threadId, errorCheckpoint) {
+    const config = {
+      configurable: {
+        thread_id: threadId,
+        checkpoint_id: errorCheckpoint
+      }
+    };
+    
+    // Get state at error
+    const errorState = await this.graph.getState(config);
+    
+    this.logger.info("Error state:", this.summarizeState(errorState.values));
+    this.logger.info("Next nodes at error:", errorState.next);
+    
+    // Find the previous successful checkpoint
+    const history = [];
+    for await (const state of this.graph.getStateHistory(
+      { configurable: { thread_id: threadId } }
+    )) {
+      history.push(state);
+      if (history.length === 2) break; // Get previous checkpoint
+    }
+    
+    if (history.length >= 2) {
+      const previousCheckpoint = history[1];
+      
+      // Create debug replay configuration
+      const debugConfig = {
+        configurable: {
+          thread_id: `${threadId}_debug`,
+          checkpoint_id: previousCheckpoint.config.configurable.checkpoint_id
+        }
+      };
+      
+      this.logger.info("Replaying from previous checkpoint:", 
+        previousCheckpoint.config.configurable.checkpoint_id
+      );
+      
+      try {
+        // Replay with enhanced logging
+        await this.graph.invoke(null, debugConfig);
+        this.logger.info("Debug replay completed successfully");
+      } catch (error) {
+        this.logger.error("Debug replay failed:", error);
+      }
+    }
+  }
+}
+```
+
+### Replay Best Practices
+
+1. **Always verify checkpoint existence before replay**:
+```javascript
+async function safeReplay(graph, threadId, checkpointId) {
+  const state = await graph.getState({
+    configurable: { thread_id: threadId, checkpoint_id: checkpointId }
+  });
+  
+  if (!state) {
+    throw new Error(`Checkpoint ${checkpointId} not found for thread ${threadId}`);
+  }
+  
+  return await graph.invoke(null, {
+    configurable: { thread_id: threadId, checkpoint_id: checkpointId }
+  });
+}
+```
+
+2. **Use separate thread IDs for replay experiments**:
+```javascript
+function createReplayThreadId(originalThreadId, scenario) {
+  return `${originalThreadId}_replay_${scenario}_${Date.now()}`;
+}
+```
+
+3. **Document replay scenarios**:
+```javascript
+const replayScenarios = {
+  "explore_alternative": {
+    description: "Explore aggressive strategy path",
+    from_checkpoint: "analysis_complete",
+    modifications: { strategy: "aggressive" },
+    expected_outcome: "high_risk_path"
+  }
+};
 ```
 
 ## Advanced Memory Patterns
@@ -2091,15 +2651,19 @@ Memory is a crucial component of sophisticated LangGraph.js applications. This g
 - **Long-term memory**: Cross-thread persistence using stores
 - **Conversation management**: Strategies for handling growing message lists
 - **Message deletion**: Programmatic and manual approaches
+- **Memory stores**: Official checkpointer libraries (MemorySaver, SqliteSaver, PostgresSaver)
+- **Replay functionality**: Re-executing graphs from checkpoints for debugging and exploration
 - **Advanced patterns**: Profile management, document collections, and instruction evolution
 - **Best practices**: Performance optimization, error handling, and memory lifecycle management
 
 **Key Takeaways:**
 
 1. **Choose the right memory type**: Use short-term for conversation context, long-term for user knowledge
-2. **Manage context windows**: Implement filtering, summarization, or smart selection strategies
-3. **Design for scale**: Consider caching, indexing, and cleanup strategies early
-4. **Handle errors gracefully**: Implement fallbacks and validation for production systems
-5. **Monitor and optimize**: Track memory usage and performance to maintain good user experience
+2. **Select appropriate checkpointers**: MemorySaver for development, SqliteSaver for local workflows, PostgresSaver for production
+3. **Leverage replay functionality**: Use checkpoints for debugging, testing, and exploring alternative paths
+4. **Manage context windows**: Implement filtering, summarization, or smart selection strategies
+5. **Design for scale**: Consider caching, indexing, and cleanup strategies early
+6. **Handle errors gracefully**: Implement fallbacks and validation for production systems
+7. **Monitor and optimize**: Track memory usage and performance to maintain good user experience
 
 Memory management in LangGraph is highly customizable, allowing you to build sophisticated agents that learn and adapt while maintaining excellent performance and reliability.
