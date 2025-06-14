@@ -5,6 +5,7 @@ dotenv.config();
 
 interface GeminiArgs  {
   streaming: boolean;
+  model?: string;
 }
 
 export const geminiBase = (args: GeminiArgs): ChatVertexAI => {
@@ -16,7 +17,7 @@ export const geminiBase = (args: GeminiArgs): ChatVertexAI => {
   }
 
   return new ChatVertexAI({
-    model: "gemini-2.5-pro-preview-05-06",
+    model: args.model ?? "gemini-2.5-pro-preview-05-06",
     temperature: 0.7,
     streaming: args.streaming,
     maxRetries: 2,

@@ -1,6 +1,6 @@
 {
   "name": "langchain_playground",
-  "packageManager": "yarn@4.3.1",
+  "packageManager": "yarn@4.9.2",
   "scripts": {
     "build": "tsc",
     "serve": "node dist/index.js",
@@ -21,7 +21,6 @@
     "@langchain/openai": "^0.5.11",
     "@napi-rs/canvas": "^0.1.70",
     "dotenv": "^16.5.0",
-    "pdf-img-convert": "^2.0.0",
     "pdf-parse": "^1.1.1",
     "pdf-poppler": "^0.2.1",
     "pdf2pic": "^3.2.0",
