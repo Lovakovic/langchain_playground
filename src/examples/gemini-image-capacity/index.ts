@@ -15,7 +15,7 @@ async function fetchCatImage(): Promise<string> {
   return buffer.toString("base64");
 }
 
-const NUMBER_OF_IMAGES = 100; // Adjust this constant to test different numbers
+const NUMBER_OF_IMAGES = 20; // Adjust this constant to test different numbers
 
 async function testGeminiWithMultipleImages() {
   console.log(`Testing Gemini with ${NUMBER_OF_IMAGES} cat images...\n`);
@@ -34,8 +34,15 @@ async function testGeminiWithMultipleImages() {
       { type: "text", text: `Please describe all ${NUMBER_OF_IMAGES} cat images I'm showing you. For each image, provide a numbered description (1, 2, 3, etc.).` }
     ];
     
-    // Add all images to the content
+    // Add all images to the content with text between them
     imageBase64Array.forEach((imageBase64, index) => {
+      // Add a text separator before each image (except the first)
+      if (index > 0) {
+        content.push({
+          type: "text",
+          text: `\n--- Image ${index + 1} of ${NUMBER_OF_IMAGES} ---\n`
+        });
+      }
       content.push({
         type: "image_url",
         image_url: { url: `data:image/jpeg;base64,${imageBase64}` }

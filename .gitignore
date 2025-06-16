@@ -18,3 +18,7 @@ node_modules
 /.env
 /src/playground/pdf_screenshot/output/
 /src/playground/pdf_to_json/output/
+/src/playground/pdf_to_json/✨ Golden Rules ✨ 2024 ✨_output/
+/.idea/
+/dist/
+/concatenated.txt
