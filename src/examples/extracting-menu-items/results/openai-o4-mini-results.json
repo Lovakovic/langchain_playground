@@ -1,0 +1,615 @@
+{
+  "result": {
+    "items": [
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Sous Vide gegarte Hähnchenbrust-Ramen",
+        "price": 16.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 1,
+          "section": "Ramen",
+          "category": "Sous Vide gegarte Hähnchenbrust-Ramen"
+        }
+      },
+      {
+        "originalName": "Tonkotsu Suppe",
+        "description": "Sous Vide gegarte Hähnchenbrust-Ramen",
+        "price": 16.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 2,
+          "section": "Ramen",
+          "category": "Sous Vide gegarte Hähnchenbrust-Ramen"
+        }
+      },
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Teriyaki-Hähnchenkeule-Ramen",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 3,
+          "section": "Ramen",
+          "category": "Teriyaki-Hähnchenkeule-Ramen"
+        }
+      },
+      {
+        "originalName": "Tonkotsu Suppe",
+        "description": "Teriyaki-Hähnchenkeule-Ramen",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 4,
+          "section": "Ramen",
+          "category": "Teriyaki-Hähnchenkeule-Ramen"
+        }
+      },
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Japanische Entenbrust-Ramen",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 5,
+          "section": "Ramen",
+          "category": "Japanische Entenbrust-Ramen"
+        }
+      },
+      {
+        "originalName": "Tonkotsu Suppe",
+        "description": "Japanische Entenbrust-Ramen",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 6,
+          "section": "Ramen",
+          "category": "Japanische Entenbrust-Ramen"
+        }
+      },
+      {
+        "originalName": "Fleischsuppe",
+        "description": "Geschmorte Rinderfleisch-Nudeln (mit Rindersuppenfleisch)",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 7,
+          "section": "Ramen",
+          "category": "Geschmorte Rinderfleisch-Nudeln"
+        }
+      },
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Japanische Chashu-Ramen",
+        "price": 16.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 8,
+          "section": "Ramen",
+          "category": "Japanische Chashu-Ramen"
+        }
+      },
+      {
+        "originalName": "Tonkotsu Suppe",
+        "description": "Japanische Chashu-Ramen",
+        "price": 16.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 9,
+          "section": "Ramen",
+          "category": "Japanische Chashu-Ramen"
+        }
+      },
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Schwarzer Knoblauch-Ramen (spanisches Iberico-Schweinefleisch)",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 10,
+          "section": "Ramen",
+          "category": "Schwarzer Knoblauch-Ramen"
+        }
+      },
+      {
+        "originalName": "Tonkotsu Suppe",
+        "description": "Schwarzer Knoblauch-Ramen (spanisches Iberico-Schweinefleisch)",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 11,
+          "section": "Ramen",
+          "category": "Schwarzer Knoblauch-Ramen"
+        }
+      },
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Höllen-Chashu-Ramen (scharf)",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i",
+          "Spicy: 🌶️🌶️"
+        ],
+        "metadata": {
+          "position": 12,
+          "section": "Ramen",
+          "category": "Höllen-Chashu-Ramen"
+        }
+      },
+      {
+        "originalName": "Tonkotsu Suppe",
+        "description": "Höllen-Chashu-Ramen (scharf)",
+        "price": 17.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i",
+          "Spicy: 🌶️🌶️"
+        ],
+        "metadata": {
+          "position": 13,
+          "section": "Ramen",
+          "category": "Höllen-Chashu-Ramen"
+        }
+      },
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Japanische Tempura-Garnelen-Ramen",
+        "price": 18.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i, b"
+        ],
+        "metadata": {
+          "position": 14,
+          "section": "Ramen",
+          "category": "Japanische Tempura-Garnelen-Ramen"
+        }
+      },
+      {
+        "originalName": "Tonkotsu Suppe",
+        "description": "Japanische Tempura-Garnelen-Ramen",
+        "price": 18.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i, b"
+        ],
+        "metadata": {
+          "position": 15,
+          "section": "Ramen",
+          "category": "Japanische Tempura-Garnelen-Ramen"
+        }
+      },
+      {
+        "originalName": "Fleischsauce",
+        "description": "Tan Tan Men (mit Erdnüsse)",
+        "price": 15.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i",
+          "Contains peanuts"
+        ],
+        "metadata": {
+          "position": 16,
+          "section": "Ramen",
+          "category": "Tan Tan Men"
+        }
+      },
+      {
+        "originalName": "Fleischsauce",
+        "description": "Peking-Nudeln (Zhajiangmian)",
+        "price": 15.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i"
+        ],
+        "metadata": {
+          "position": 17,
+          "section": "Ramen",
+          "category": "Peking-Nudeln"
+        }
+      },
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Tofu Ramen (vegan)",
+        "price": 15.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i",
+          "Vegan"
+        ],
+        "metadata": {
+          "position": 18,
+          "section": "Ramen",
+          "category": "Tofu Ramen"
+        }
+      },
+      {
+        "originalName": "Shoyu Suppe",
+        "description": "Tempura-Gemüse-Ramen (vegan)",
+        "price": 12.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, k, f, i",
+          "Vegan"
+        ],
+        "metadata": {
+          "position": 19,
+          "section": "Ramen",
+          "category": "Tempura-Gemüse-Ramen"
+        }
+      },
+      {
+        "originalName": "Weichgekochtes Ei",
+        "price": 2.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "B1",
+          "section": "Toppings"
+        }
+      },
+      {
+        "originalName": "Chashu (Schweinenacken)",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "B2",
+          "section": "Toppings"
+        }
+      },
+      {
+        "originalName": "Gemüse Tempura",
+        "price": 3.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "B3",
+          "section": "Toppings"
+        }
+      },
+      {
+        "originalName": "Tantan-Fleisch",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "B4",
+          "section": "Toppings"
+        }
+      },
+      {
+        "originalName": "Geschmortes Rindersuppenfleisch",
+        "price": 5.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "B5",
+          "section": "Toppings"
+        }
+      },
+      {
+        "originalName": "Entenbrust",
+        "price": 5.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "B6",
+          "section": "Toppings"
+        }
+      },
+      {
+        "originalName": "Teriyaki-Hähnchenkeule",
+        "price": 5.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "B7",
+          "section": "Toppings"
+        }
+      },
+      {
+        "originalName": "Sous Vide gegarte Hähnchenbrust",
+        "price": 5.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "B8",
+          "section": "Toppings"
+        }
+      },
+      {
+        "originalName": "Gyoza mit Hähnchen-Füllung",
+        "price": 5.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, f"
+        ],
+        "metadata": {
+          "id": "S1",
+          "section": "Snacks"
+        }
+      },
+      {
+        "originalName": "Garnelen Tempura",
+        "price": 7.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, b, f"
+        ],
+        "metadata": {
+          "id": "S2",
+          "section": "Snacks"
+        }
+      },
+      {
+        "originalName": "Edamame",
+        "price": 5.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: f"
+        ],
+        "metadata": {
+          "id": "S3",
+          "section": "Snacks"
+        }
+      },
+      {
+        "originalName": "Takoyaki (Oktopusbällchen)",
+        "price": 7.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: b, n, a1, f"
+        ],
+        "metadata": {
+          "id": "S4",
+          "section": "Snacks"
+        }
+      },
+      {
+        "originalName": "Eingelegter Rettich",
+        "price": 4.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: f",
+          "Spicy"
+        ],
+        "metadata": {
+          "id": "S5",
+          "section": "Snacks"
+        }
+      },
+      {
+        "originalName": "Spinat mit Sesam",
+        "price": 4.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: k"
+        ],
+        "metadata": {
+          "id": "S6",
+          "section": "Snacks"
+        }
+      },
+      {
+        "originalName": "Veggie Gyoza",
+        "price": 4.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, f"
+        ],
+        "metadata": {
+          "id": "S7",
+          "section": "Snacks"
+        }
+      },
+      {
+        "originalName": "Mochi",
+        "price": 7.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: f, k"
+        ],
+        "metadata": {
+          "id": "D1",
+          "section": "Desserts"
+        }
+      },
+      {
+        "originalName": "Dorayaki",
+        "price": 8.9,
+        "currency": "EUR",
+        "notes": [
+          "Allergens: a1, c, f, k"
+        ],
+        "metadata": {
+          "id": "D2",
+          "section": "Desserts"
+        }
+      },
+      {
+        "originalName": "Gerolsteiner Wasser (m/o)",
+        "price": 3.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G1",
+          "section": "Getränke",
+          "volume": "0.25l"
+        }
+      },
+      {
+        "originalName": "Fritz-Kola",
+        "price": 3.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G2",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "Fritz-Kola ohne Zucker",
+        "price": 3.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G3",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "Mischmasch Fritz-Kola",
+        "price": 3.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G4",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "Fritz-Limo Zitrone/Orange/Ingwer-Limette",
+        "price": 3.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G5",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "Granini RHABARBERSCHORLE",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G6",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "Granini APFELSCHORLE",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G7",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "DOYOBI MATCHATY",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G8",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "DOYOBI YUZUKA",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G9",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "KIMURA GANSO RAMUNE",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G10",
+          "section": "Getränke",
+          "volume": "0.20l"
+        }
+      },
+      {
+        "originalName": "KIMURA GANSO RAMUNE STRAWBERRY",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G11",
+          "section": "Getränke",
+          "volume": "0.20l"
+        }
+      },
+      {
+        "originalName": "KIMURA GANSO RAMUNE YUZU",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G12",
+          "section": "Getränke",
+          "volume": "0.20l"
+        }
+      },
+      {
+        "originalName": "KIMURA GANSO RAMUNE WATERMELON",
+        "price": 4.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G13",
+          "section": "Getränke",
+          "volume": "0.20l"
+        }
+      },
+      {
+        "originalName": "KIRIN Bier",
+        "price": 5.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G14",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      },
+      {
+        "originalName": "TSINGTAO Bier",
+        "price": 5.9,
+        "currency": "EUR",
+        "metadata": {
+          "id": "G15",
+          "section": "Getränke",
+          "volume": "0.33l"
+        }
+      }
+    ],
+    "remarks": "Menu text primarily in German with Japanese dish names and English descriptors. Sections include Ramen, Toppings, Snacks, Desserts, and Getränke (Drinks). Prices in EUR. Allergen codes listed where present."
+  },
+  "tokenUsage": {
+    "inputTokens": 5315,
+    "outputTokens": 7741,
+    "totalTokens": 13056
+  },
+  "cost": 0.039906899999999995
+}

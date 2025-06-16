@@ -7,6 +7,7 @@ dotenv.config();
 interface OpenAIArgs  {
   streaming: boolean;
   enableThinking?: boolean;
+  model?: string;
 }
 
 export const gptBase = (args: OpenAIArgs): ChatOpenAI => {
@@ -17,12 +18,12 @@ export const gptBase = (args: OpenAIArgs): ChatOpenAI => {
   }
 
   const thinkingArgs: ChatOpenAIFields = args.enableThinking ? {
-    model: 'o4-mini',
+    model: args.model ?? 'o4-mini',
     reasoning: {
       effort: "high",
     }
   } : {
-    model: "gpt-4o",
+    model: args.model ?? "gpt-4o",
     temperature: 0.7,
   };
 
