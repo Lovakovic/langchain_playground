@@ -119,7 +119,7 @@ async function extractWithModel(
   modelName: string,
   model: any,
   images: Buffer[]
-): Promise<{ modelName: string; result: any; duration: number; tokenUsage: TokenUsage; cost?: number }> {
+): Promise<{ modelName: string; result: any; duration: number; tokenUsage: TokenUsage; cost?: number; startTime: number; endTime: number }> {
   const startTime = Date.now();
   
   const imageMessages = images.map(buffer => ({
@@ -144,8 +144,10 @@ async function extractWithModel(
       tool_choice: 'any',
     }).invoke([message]);
 
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+
     const toolCalls = response.tool_calls;
-    const duration = Date.now() - startTime;
 
     if (!toolCalls || toolCalls.length === 0) {
       throw new Error('No tool calls in response');
@@ -194,15 +196,20 @@ async function extractWithModel(
       duration,
       tokenUsage,
       cost,
+      startTime,
+      endTime,
     };
   } catch (error) {
-    const duration = Date.now() - startTime;
+    const endTime = Date.now();
+    const duration = endTime - startTime;
     return {
       modelName,
       result: { error: error instanceof Error ? error.message : 'Unknown error' },
       duration,
       tokenUsage: {},
       cost: undefined,
+      startTime,
+      endTime,
     };
   }
 }
@@ -251,69 +258,73 @@ async function main() {
   console.log('Processing models in parallel...\n');
 
   let totalCost = 0;
-  const results: any[] = [];
+  const globalStartTime = Date.now();
 
-  // Create promises for all models
+  // Create promises for all models - start them all at once
   const modelPromises = models.map(({ name, instance }) => 
-    extractWithModel(name, instance, images).then(async result => {
-      // Process and display result immediately when it completes
-      console.log(`\n${result.modelName} (${(result.duration / 1000).toFixed(2)}s):`);
-      console.log('-'.repeat(50));
-      
-      // Display token usage and cost
-      if (result.tokenUsage.totalTokens) {
-        console.log(`Tokens - Input: ${result.tokenUsage.inputTokens || 'N/A'}, Output: ${result.tokenUsage.outputTokens || 'N/A'}, Total: ${result.tokenUsage.totalTokens}`);
-        if (result.cost !== undefined) {
-          console.log(`Cost: $${result.cost.toFixed(6)} (Input: $${((result.tokenUsage.inputTokens || 0) / 1_000_000 * (MODEL_PRICING[result.modelName]?.inputPricePerMillion || 0)).toFixed(6)}, Output: $${((result.tokenUsage.outputTokens || 0) / 1_000_000 * (MODEL_PRICING[result.modelName]?.outputPricePerMillion || 0)).toFixed(6)})`);
-          totalCost += result.cost;
-        }
-      } else if (result.tokenUsage.inputTokens || result.tokenUsage.outputTokens) {
-        console.log(`Tokens - Input: ${result.tokenUsage.inputTokens || 'N/A'}, Output: ${result.tokenUsage.outputTokens || 'N/A'}`);
-      } else {
-        console.log('Token usage: Not available');
-      }
-      
-      if (result.result.error) {
-        console.log(`Error: ${result.result.error}`);
-      } else {
-        console.log(`Items found: ${result.result.items?.length || 0}`);
-        if (result.result.remarks) {
-          console.log(`Remarks: ${result.result.remarks}`);
-        }
-        
-        if (result.result.items && result.result.items.length > 0) {
-          console.log('\nFirst 3 items:');
-          result.result.items.slice(0, 3).forEach((item: any, idx: number) => {
-            console.log(`\n${idx + 1}. ${item.originalName}`);
-            if (item.englishName) console.log(`   English: ${item.englishName}`);
-            if (item.description) console.log(`   Description: ${item.description}`);
-            console.log(`   Price: ${item.price} ${item.currency || 'EUR'}`);
-            if (item.metadata?.section) console.log(`   Section: ${item.metadata.section}`);
-          });
-        }
-      }
-      
-      // Save result immediately
-      if (!result.result.error) {
-        const filename = `${result.modelName.toLowerCase().replace(/\s+/g, '-')}-results.json`;
-        await fs.writeFile(
-          path.join(outputDir, filename),
-          JSON.stringify({ result: result.result, tokenUsage: result.tokenUsage, cost: result.cost }, null, 2)
-        );
-        console.log(`\nResults saved to: ${filename}`);
-      }
-      
-      console.log('\n' + '='.repeat(50) + '\n');
-      
-      // Store result for summary
-      results.push(result);
-      
-      return result;
-    })
+    extractWithModel(name, instance, images)
   );
 
-  // Wait for all to complete
-  await Promise.all(modelPromises);
+  // Wait for all to complete and collect results
+  const results = await Promise.all(modelPromises);
+  
+  // Sort results by completion time to show which finished first
+  results.sort((a, b) => a.endTime - b.endTime);
+  
+  // Display results in order of completion
+  for (const result of results) {
+    const relativeStartTime = ((result.startTime - globalStartTime) / 1000).toFixed(2);
+    const relativeEndTime = ((result.endTime - globalStartTime) / 1000).toFixed(2);
+    
+    console.log(`\n${result.modelName}:`);
+    console.log(`Started at: +${relativeStartTime}s, Completed at: +${relativeEndTime}s, Duration: ${(result.duration / 1000).toFixed(2)}s`);
+    console.log('-'.repeat(70));
+    
+    // Display token usage and cost
+    if (result.tokenUsage.totalTokens) {
+      console.log(`Tokens - Input: ${result.tokenUsage.inputTokens || 'N/A'}, Output: ${result.tokenUsage.outputTokens || 'N/A'}, Total: ${result.tokenUsage.totalTokens}`);
+      if (result.cost !== undefined) {
+        console.log(`Cost: $${result.cost.toFixed(6)} (Input: $${((result.tokenUsage.inputTokens || 0) / 1_000_000 * (MODEL_PRICING[result.modelName]?.inputPricePerMillion || 0)).toFixed(6)}, Output: $${((result.tokenUsage.outputTokens || 0) / 1_000_000 * (MODEL_PRICING[result.modelName]?.outputPricePerMillion || 0)).toFixed(6)})`);
+        totalCost += result.cost;
+      }
+    } else if (result.tokenUsage.inputTokens || result.tokenUsage.outputTokens) {
+      console.log(`Tokens - Input: ${result.tokenUsage.inputTokens || 'N/A'}, Output: ${result.tokenUsage.outputTokens || 'N/A'}`);
+    } else {
+      console.log('Token usage: Not available');
+    }
+    
+    if (result.result.error) {
+      console.log(`Error: ${result.result.error}`);
+    } else {
+      console.log(`Items found: ${result.result.items?.length || 0}`);
+      if (result.result.remarks) {
+        console.log(`Remarks: ${result.result.remarks}`);
+      }
+      
+      if (result.result.items && result.result.items.length > 0) {
+        console.log('\nFirst 3 items:');
+        result.result.items.slice(0, 3).forEach((item: any, idx: number) => {
+          console.log(`\n${idx + 1}. ${item.originalName}`);
+          if (item.englishName) console.log(`   English: ${item.englishName}`);
+          if (item.description) console.log(`   Description: ${item.description}`);
+          console.log(`   Price: ${item.price} ${item.currency || 'EUR'}`);
+          if (item.metadata?.section) console.log(`   Section: ${item.metadata.section}`);
+        });
+      }
+    }
+    
+    // Save result
+    if (!result.result.error) {
+      const filename = `${result.modelName.toLowerCase().replace(/\s+/g, '-')}-results.json`;
+      await fs.writeFile(
+        path.join(outputDir, filename),
+        JSON.stringify({ result: result.result, tokenUsage: result.tokenUsage, cost: result.cost }, null, 2)
+      );
+      console.log(`\nResults saved to: ${filename}`);
+    }
+    
+    console.log('\n' + '='.repeat(70) + '\n');
+  }
 
   console.log(`\n\n=== COST SUMMARY ===`);
   console.log(`Total cost for all models: $${totalCost.toFixed(6)}`);
