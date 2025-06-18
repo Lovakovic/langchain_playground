@@ -17,7 +17,7 @@ export const geminiBase = (args: GeminiArgs): ChatVertexAI => {
   }
 
   return new ChatVertexAI({
-    model: args.model ?? "gemini-2.5-pro-preview-05-06",
+    model: args.model ?? "gemini-2.5-pro",
     temperature: 0.7,
     streaming: args.streaming,
     maxRetries: 2,

@@ -228,7 +228,7 @@ async function main() {
   
   const geminiProModel = geminiBase({ 
     streaming: false, 
-    model: 'gemini-2.5-pro-preview-05-06'
+    model: 'gemini-2.5-pro'
   });
   
   const openaiO4Model = gptBase({ 

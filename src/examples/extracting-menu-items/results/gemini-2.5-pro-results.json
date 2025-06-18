@@ -1,87 +1,96 @@
 {
   "result": {
+    "remarks": "The menu is in German and prices are in EUR. It is well-structured with sections for Ramen, Toppings, Snacks, Desserts, and Drinks. Some items have dietary notes (e.g., Vegan) and spiciness indicators. Drink sizes are also provided for some items.",
     "items": [
       {
-        "metadata": {
-          "section": "Ramen",
-          "position": 1
-        },
         "currency": "EUR",
-        "originalName": "Shoyu Suppe mit Sous Vide gegarte Hähnchenbrust-Ramen",
-        "price": 16.9
+        "originalName": "Shoyu Suppe",
+        "metadata": {
+          "position": 1,
+          "section": "Ramen"
+        },
+        "price": 16.9,
+        "description": "Sous Vide gegarte Hähnchenbrust-Ramen"
       },
       {
+        "price": 16.9,
         "currency": "EUR",
         "metadata": {
           "section": "Ramen",
           "position": 2
         },
-        "originalName": "Tonkotsu Suppe mit Sous Vide gegarte Hähnchenbrust-Ramen",
-        "price": 16.9
+        "originalName": "Tonkotsu Suppe",
+        "description": "Sous Vide gegarte Hähnchenbrust-Ramen"
       },
       {
         "currency": "EUR",
-        "price": 17.9,
-        "originalName": "Shoyu Suppe mit Teriyaki-Hähnchenkeule-Ramen",
         "metadata": {
           "section": "Ramen",
           "position": 3
-        }
-      },
-      {
-        "metadata": {
-          "position": 4,
-          "section": "Ramen"
         },
-        "price": 17.9,
-        "originalName": "Tonkotsu Suppe mit Teriyaki-Hähnchenkeule-Ramen",
-        "currency": "EUR"
-      },
-      {
-        "originalName": "Shoyu Suppe mit Japanische Entenbrust-Ramen",
-        "currency": "EUR",
-        "metadata": {
-          "position": 5,
-          "section": "Ramen"
-        },
+        "originalName": "Shoyu Suppe",
+        "description": "Teriyaki-Hähnchenkeule-Ramen",
         "price": 17.9
       },
       {
-        "price": 17.9,
-        "originalName": "Tonkotsu Suppe mit Japanische Entenbrust-Ramen",
         "currency": "EUR",
+        "description": "Teriyaki-Hähnchenkeule-Ramen, spanischem-Iberico-Schweinefleisch Schwarzer Knoblauch-Ramen",
+        "originalName": "Tonkotsu Suppe",
+        "price": 17.9,
         "metadata": {
           "section": "Ramen",
-          "position": 6
+          "position": 4
         }
       },
       {
-        "description": "(mit Rindersuppenfleisch)",
+        "description": "Japanische Entenbrust-Ramen",
+        "currency": "EUR",
+        "metadata": {
+          "section": "Ramen",
+          "position": 5
+        },
         "price": 17.9,
-        "originalName": "Fleischsuppe mit Geschmorte Rinderfleisch-Nudeln",
+        "originalName": "Shoyu Suppe"
+      },
+      {
+        "originalName": "Tonkotsu Suppe",
+        "price": 17.9,
+        "metadata": {
+          "section": "Ramen",
+          "position": 6
+        },
+        "currency": "EUR",
+        "description": "Japanische Entenbrust-Ramen, Scharf Höllen-Chashu-Ramen"
+      },
+      {
         "currency": "EUR",
         "metadata": {
           "section": "Ramen",
           "position": 7
-        }
+        },
+        "price": 17.9,
+        "originalName": "Fleischsuppe",
+        "description": "Geschmorte Rinderfleisch-Nudeln (mit rindersuppenfleisch)"
       },
       {
-        "originalName": "Shoyu Suppe mit Japanische Chashu-Ramen",
+        "currency": "EUR",
+        "originalName": "Shoyu Suppe",
+        "description": "Japanische Chashu-Ramen",
         "metadata": {
           "section": "Ramen",
           "position": 8
         },
-        "price": 16.9,
-        "currency": "EUR"
+        "price": 16.9
       },
       {
+        "description": "Japanische Chashu-Ramen",
+        "currency": "EUR",
         "metadata": {
           "position": 9,
           "section": "Ramen"
         },
         "price": 16.9,
-        "originalName": "Tonkotsu Suppe mit Japanische Chashu-Ramen",
-        "currency": "EUR"
+        "originalName": "Tonkotsu Suppe"
       },
       {
         "price": 17.9,
@@ -89,229 +98,228 @@
           "section": "Ramen",
           "position": 10
         },
-        "originalName": "Shoyu Suppe mit spanischem-Iberico-Schweinefleisch",
-        "currency": "EUR"
+        "description": "Tempura-Garnelen-Ramen",
+        "currency": "EUR",
+        "originalName": "Shoyu Suppe"
       },
       {
+        "price": 17.9,
+        "originalName": "Tonkotsu Suppe",
+        "description": "Tempura-Garnelen-Ramen",
+        "currency": "EUR",
         "metadata": {
           "position": 11,
           "section": "Ramen"
-        },
-        "originalName": "Tonkotsu Suppe mit spanischem-Iberico-Schweinefleisch",
-        "currency": "EUR",
-        "price": 17.9
+        }
       },
       {
-        "currency": "EUR",
         "metadata": {
-          "section": "Ramen",
-          "position": 12
+          "position": 12,
+          "section": "Ramen"
         },
-        "notes": "Scharf",
-        "originalName": "Shoyu Suppe mit Scharf Höllen-Chashu-Ramen",
+        "originalName": "Shoyu Suppe",
+        "currency": "EUR",
         "price": 17.9
       },
       {
-        "notes": "Scharf",
-        "originalName": "Tonkotsu Suppe mit Scharf Höllen-Chashu-Ramen",
         "metadata": {
           "position": 13,
           "section": "Ramen"
         },
-        "price": 17.9,
-        "currency": "EUR"
+        "originalName": "Tonkotsu Suppe",
+        "currency": "EUR",
+        "price": 17.9
       },
       {
+        "originalName": "Shoyu Suppe",
+        "price": 18.9,
+        "currency": "EUR",
         "metadata": {
-          "position": 14,
-          "section": "Ramen"
-        },
-        "currency": "EUR",
-        "price": 18.9,
-        "originalName": "Shoyu Suppe mit Japanische Tempura-Garnelen-Ramen"
+          "section": "Ramen",
+          "position": 14
+        }
       },
       {
-        "currency": "EUR",
+        "originalName": "Tonkotsu Suppe",
         "price": 18.9,
+        "currency": "EUR",
         "metadata": {
           "position": 15,
           "section": "Ramen"
-        },
-        "originalName": "Tonkotsu Suppe mit Japanische Tempura-Garnelen-Ramen"
+        }
       },
       {
-        "notes": "Vegan option available",
-        "price": 15.9,
-        "currency": "EUR",
         "metadata": {
           "section": "Ramen",
           "position": 16
         },
-        "originalName": "Fleischsauce mit Tan Tan Men",
-        "description": "(mit Erdnüsse)"
+        "originalName": "Fleischsauce",
+        "price": 15.9,
+        "notes": "Vegan",
+        "currency": "EUR",
+        "description": "Tan Tan Men (mit Erdnüsse)"
       },
       {
+        "originalName": "Fleischsauce",
+        "price": 15.9,
+        "notes": "Vegan",
+        "description": "Peking Nudeln (Zhájiàngmiàn)",
         "metadata": {
           "section": "Ramen",
           "position": 17
         },
-        "price": 15.9,
-        "currency": "EUR",
-        "originalName": "Fleischsauce mit Peking Nudeln",
-        "notes": "Vegan option available",
-        "description": "(Zhájiàngmiàn)"
+        "currency": "EUR"
       },
       {
-        "originalName": "Shoyu Suppe mit Tofu Ramen",
+        "description": "Tofu Ramen",
+        "currency": "EUR",
+        "originalName": "Shoyu Suppe",
+        "price": 15.9,
+        "metadata": {
+          "position": 18,
+          "section": "Ramen"
+        }
+      },
+      {
         "metadata": {
           "section": "Ramen",
-          "position": 18
+          "position": 19
         },
         "currency": "EUR",
-        "price": 15.9,
-        "notes": "Vegan"
-      },
-      {
-        "originalName": "Shoyu Suppe mit Tempura-Gemüse-Ramen",
-        "metadata": {
-          "position": 19,
-          "section": "Ramen"
-        },
-        "currency": "EUR",
-        "notes": "Vegan",
+        "description": "Tempura-Gemüse-Ramen",
+        "originalName": "Shoyu Suppe",
         "price": 12.9
       },
       {
-        "price": 2.9,
-        "currency": "EUR",
         "metadata": {
           "position": 20,
-          "section": "Toppings"
+          "section": "Beilagen zu Nudeln"
         },
+        "price": 2.9,
+        "currency": "EUR",
         "originalName": "Weichgekochtes Ei"
       },
       {
-        "currency": "EUR",
-        "originalName": "Chashu (Schweinenacken)",
         "price": 4.9,
         "metadata": {
-          "position": 21,
-          "section": "Toppings"
-        }
+          "section": "Beilagen zu Nudeln",
+          "position": 21
+        },
+        "currency": "EUR",
+        "originalName": "Chashu (Schweinenacken)"
       },
       {
         "currency": "EUR",
         "originalName": "Gemüse Tempura",
         "price": 3.9,
         "metadata": {
-          "section": "Toppings",
+          "section": "Beilagen zu Nudeln",
           "position": 22
         }
       },
       {
+        "price": 4.9,
         "currency": "EUR",
         "metadata": {
           "position": 23,
-          "section": "Toppings"
+          "section": "Beilagen zu Nudeln"
         },
-        "price": 4.9,
         "originalName": "Tantan-Fleisch"
       },
       {
-        "price": 4.9,
+        "originalName": "Geschmortes Rindersuppenfleisch",
         "currency": "EUR",
+        "price": 5.9,
         "metadata": {
           "position": 24,
-          "section": "Toppings"
-        },
-        "originalName": "Geschmortes Rindersuppenfleisch"
+          "section": "Beilagen zu Nudeln"
+        }
       },
       {
         "metadata": {
           "position": 25,
-          "section": "Toppings"
+          "section": "Beilagen zu Nudeln"
         },
-        "currency": "EUR",
         "originalName": "Entenbrust",
-        "price": 5.9
+        "price": 5.9,
+        "currency": "EUR"
       },
       {
-        "originalName": "Teriyaki-Hähnchenkeule",
-        "currency": "EUR",
         "metadata": {
-          "position": 26,
-          "section": "Toppings"
+          "section": "Beilagen zu Nudeln",
+          "position": 26
         },
-        "price": 4.9
+        "price": 4.9,
+        "currency": "EUR",
+        "originalName": "Teriyaki-Hähnchenkeule"
       },
       {
         "price": 5.9,
         "originalName": "Sous Vide gegarte Hähnchenbrust",
         "metadata": {
           "position": 27,
-          "section": "Toppings"
+          "section": "Beilagen zu Nudeln"
         },
         "currency": "EUR"
       },
       {
-        "currency": "EUR",
-        "originalName": "Gyoza mit Hähnchen-Füllung",
-        "price": 5.9,
         "metadata": {
           "position": 28,
           "section": "Snacks"
-        }
+        },
+        "price": 5.9,
+        "currency": "EUR",
+        "originalName": "Gyoza mit Hähnchen-Füllung"
       },
       {
-        "originalName": "Garnelen Tempura",
+        "price": 7.9,
+        "currency": "EUR",
         "metadata": {
           "section": "Snacks",
           "position": 29
         },
-        "price": 7.9,
-        "currency": "EUR"
+        "originalName": "Garnelen Tempura"
       },
       {
         "price": 5.9,
-        "currency": "EUR",
-        "originalName": "Edamame",
         "metadata": {
           "section": "Snacks",
           "position": 30
-        }
-      },
-      {
-        "description": "(Oktopusbällchen)",
-        "price": 7.9,
-        "originalName": "Takoyaki",
-        "metadata": {
-          "section": "Snacks",
-          "position": 31
         },
+        "originalName": "Edamame",
         "currency": "EUR"
       },
       {
+        "price": 7.9,
         "currency": "EUR",
         "metadata": {
-          "position": 32,
+          "position": 31,
           "section": "Snacks"
         },
-        "price": 4.9,
-        "originalName": "Eingelegter Rettich"
+        "originalName": "Takoyaki (Oktopusbällchen)"
       },
       {
+        "price": 4.9,
         "currency": "EUR",
         "metadata": {
           "section": "Snacks",
-          "position": 33
+          "position": 32
         },
-        "originalName": "Spinat mit Sesam",
-        "price": 4.9
+        "originalName": "Eingelegter Rettich"
       },
       {
+        "price": 4.9,
+        "currency": "EUR",
+        "originalName": "Spinat mit Sesam",
+        "metadata": {
+          "position": 33,
+          "section": "Snacks"
+        }
+      },
+      {
+        "originalName": "Veggie Gyoza",
         "currency": "EUR",
         "price": 4.9,
-        "originalName": "Veggie Gyoza",
         "metadata": {
           "position": 34,
           "section": "Snacks"
@@ -319,71 +327,71 @@
       },
       {
         "currency": "EUR",
-        "price": 7.9,
         "metadata": {
           "section": "Desserts",
           "position": 35
         },
-        "originalName": "Mochi"
+        "originalName": "Mochi",
+        "price": 7.9
       },
       {
         "price": 8.9,
         "metadata": {
-          "section": "Desserts",
-          "position": 36
+          "position": 36,
+          "section": "Desserts"
         },
         "originalName": "Dorayaki",
         "currency": "EUR"
       },
       {
-        "originalName": "Gerolsteiner Wasser (m/o)",
-        "currency": "EUR",
         "metadata": {
           "section": "Getränke",
           "position": 37
         },
+        "originalName": "Gerolsteiner Wasser (m/o)",
         "price": 3.9,
-        "description": "0.25l"
+        "description": "0.25l",
+        "currency": "EUR"
       },
       {
-        "description": "0.33l",
-        "originalName": "Fritz-Kola",
+        "currency": "EUR",
         "metadata": {
           "section": "Getränke",
           "position": 38
         },
         "price": 3.9,
-        "currency": "EUR"
+        "description": "0.33l",
+        "originalName": "Fritz-Kola"
       },
       {
+        "currency": "EUR",
         "originalName": "Fritz-Kola ohne Zucker",
         "description": "0.33l",
-        "price": 3.9,
-        "currency": "EUR",
         "metadata": {
-          "section": "Getränke",
-          "position": 39
-        }
+          "position": 39,
+          "section": "Getränke"
+        },
+        "price": 3.9
       },
       {
+        "description": "0.33l",
         "originalName": "Mischmasch Fritz-Kola",
         "metadata": {
           "position": 40,
           "section": "Getränke"
         },
-        "price": 3.9,
-        "description": "0.33l",
-        "currency": "EUR"
+        "currency": "EUR",
+        "price": 3.9
       },
       {
-        "price": 3.9,
+        "metadata": {
+          "position": 41,
+          "section": "Getränke"
+        },
         "description": "0.33l",
         "currency": "EUR",
         "originalName": "Fritz-Limo Zitrone/Orange/Ingwer-Limette",
-        "metadata": {
-          "section": "Getränke",
-          "position": 41
-        }
+        "price": 3.9
       },
       {
         "price": 4.9,
@@ -391,107 +399,106 @@
           "position": 42,
           "section": "Getränke"
         },
-        "description": "0.33l",
         "originalName": "Granini RHABARBERSCHORLE",
-        "currency": "EUR"
+        "currency": "EUR",
+        "description": "0.33l"
       },
       {
-        "originalName": "Granini APFELSCHORLE",
         "price": 4.9,
-        "currency": "EUR",
-        "description": "0.33l",
         "metadata": {
           "section": "Getränke",
           "position": 43
-        }
-      },
-      {
-        "price": 4.9,
-        "description": "0.33l",
-        "metadata": {
-          "section": "Getränke",
-          "position": 44
         },
         "currency": "EUR",
-        "originalName": "DOYOBI MATCHA"
+        "description": "0.33l",
+        "originalName": "Granini APFELSCHORLE"
       },
       {
+        "metadata": {
+          "position": 44,
+          "section": "Getränke"
+        },
+        "originalName": "DOYOBI MATCHA",
+        "price": 4.9,
         "description": "0.33l",
+        "currency": "EUR"
+      },
+      {
         "metadata": {
           "position": 45,
           "section": "Getränke"
         },
+        "description": "0.33l",
         "price": 4.9,
         "currency": "EUR",
         "originalName": "DOYOBI YUZUKA"
       },
       {
-        "description": "0.20l",
         "price": 4.9,
         "originalName": "KIMURA GANSO RAMUNE",
+        "description": "0.20l",
         "currency": "EUR",
         "metadata": {
-          "section": "Getränke",
-          "position": 46
+          "position": 46,
+          "section": "Getränke"
         }
       },
       {
+        "price": 4.9,
+        "currency": "EUR",
+        "description": "0.20l",
         "originalName": "KIMURA GANSO RAMUNE STRAWBERRY",
         "metadata": {
-          "position": 47,
-          "section": "Getränke"
-        },
-        "description": "0.20l",
-        "currency": "EUR",
-        "price": 4.9
+          "section": "Getränke",
+          "position": 47
+        }
       },
       {
         "originalName": "KIMURA GANSO RAMUNE YUZU",
         "currency": "EUR",
-        "description": "0.20l",
-        "price": 4.9,
         "metadata": {
           "section": "Getränke",
           "position": 48
-        }
+        },
+        "description": "0.20l",
+        "price": 4.9
       },
       {
+        "price": 4.9,
         "metadata": {
           "position": 49,
           "section": "Getränke"
         },
+        "description": "0.20l",
         "currency": "EUR",
-        "originalName": "KIMURA GANSO RAMUNE WATERMELON",
-        "price": 4.9,
-        "description": "0.20l"
+        "originalName": "KIMURA GANSO RAMUNE WATERMELON"
       },
       {
-        "price": 5.9,
         "metadata": {
-          "section": "Getränke",
-          "position": 50
+          "position": 50,
+          "section": "Getränke"
         },
-        "currency": "EUR",
+        "price": 5.9,
         "originalName": "KIRIN Bier",
+        "currency": "EUR",
         "description": "0.33l"
       },
       {
-        "originalName": "TSINGTAO Bier",
+        "currency": "EUR",
         "description": "0.33l",
         "price": 5.9,
+        "originalName": "TSINGTAO Bier",
         "metadata": {
-          "section": "Getränke",
-          "position": 51
-        },
-        "currency": "EUR"
+          "position": 51,
+          "section": "Getränke"
+        }
       }
-    ],
-    "remarks": "The menu is in German. Currency is EUR. It is well-structured with sections for Ramen, Toppings, Snacks, Desserts, and Getränke (Drinks). Some items have vegan options or are marked as spicy (Scharf)."
+    ]
   },
   "tokenUsage": {
     "inputTokens": 708,
-    "outputTokens": 1458,
-    "totalTokens": 2166
+    "outputTokens": 1502,
+    "totalTokens": 2210
   },
-  "cost": 0.015465000000000001
+  "cost": 0.015905
 }
