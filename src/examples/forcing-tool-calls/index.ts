@@ -1,7 +1,10 @@
+import dotenv from "dotenv";
 import {tool} from "@langchain/core/tools";
-import {geminiBase} from "../../shared/utils/models/vertexai";
+import { ChatVertexAI } from "@langchain/google-vertexai";
 import {HumanMessage, ToolMessage} from "@langchain/core/messages";
 import {convertJSONSchemaDraft7ToZod} from "../../shared/utils/json-schema-to-zod/json7ToZodSchema";
+
+dotenv.config();
 
 // 1. Tool creation: Define the multiply tool
 const multiply = tool(
@@ -30,7 +33,19 @@ const multiply = tool(
 );
 
 const main = async () => {
-  const gemini = geminiBase({ streaming: false });
+  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
+      "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
+    );
+  }
+
+  const gemini = new ChatVertexAI({
+    model: "gemini-2.5-pro",
+    temperature: 0.7,
+    streaming: false,
+    maxRetries: 2,
+  });
 
   // Vertex AI only supports "any" tool choice, so if we want to force the model to use a specific tool, we can set tool_choice to 'any' but only bind that one tool.
   const geminiWithForcedTool = gemini.bindTools(

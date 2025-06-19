@@ -20,7 +20,10 @@ import { tool } from "@langchain/core/tools";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { Annotation, interrupt, MemorySaver, MessagesAnnotation, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { geminiBase } from "../../shared/utils/models/vertexai";
+import dotenv from "dotenv";
+import { ChatVertexAI } from "@langchain/google-vertexai";
+
+dotenv.config();
 import { createReActAgent } from "../react_agent";
 import * as fs from "fs";
 import * as path from "path";
@@ -89,7 +92,19 @@ const ParentStateAnnotation = Annotation.Root({
 
 // Critique agent model call
 async function callCritiqueModel(state: typeof MessagesAnnotation.State) {
-  const model = geminiBase({ model: 'gemini-2.5-flash', streaming: true });
+  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
+      "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
+    );
+  }
+
+  const model = new ChatVertexAI({
+    model: 'gemini-2.5-flash',
+    temperature: 0.7,
+    streaming: true,
+    maxRetries: 2,
+  });
   const modelWithTools = model.bindTools([approveImageTool, removeImageTool]);
   
   const response = await modelWithTools.invoke(state.messages);

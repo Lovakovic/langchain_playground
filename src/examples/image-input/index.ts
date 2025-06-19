@@ -1,9 +1,12 @@
 import * as fs from "node:fs/promises";
+import dotenv from "dotenv";
 import { HumanMessage } from "@langchain/core/messages";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { geminiBase } from "../../shared/utils/models/vertexai";
-import { gptBase } from "../../shared/utils/models/openai";
+import { ChatVertexAI } from "@langchain/google-vertexai";
+import { ChatOpenAI } from "@langchain/openai";
+
+dotenv.config();
 
 // Create a simple tool for testing
 const imageAnalysisTool = new DynamicStructuredTool({
@@ -48,7 +51,21 @@ const main = async () => {
 
   // Test with Gemini
   console.log("=== GEMINI MODEL WITH TOOL ===");
-  const geminiWithTool = geminiBase({ streaming: false }).bindTools([imageAnalysisTool], {
+  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
+      "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
+    );
+  }
+
+  const gemini = new ChatVertexAI({
+    model: "gemini-2.5-pro",
+    temperature: 0.7,
+    streaming: false,
+    maxRetries: 2,
+  });
+
+  const geminiWithTool = gemini.bindTools([imageAnalysisTool], {
     tool_choice: "any",
   });
   console.log("Sending message to Gemini with tool...");
@@ -59,7 +76,21 @@ const main = async () => {
   
   // Test with OpenAI
   console.log("\n\n=== OPENAI MODEL WITH TOOL ===");
-  const openaiWithTool = gptBase({ streaming: false, enableThinking: false }).bindTools([imageAnalysisTool], {
+  
+  if(!process.env.OPENAI_API_KEY) {
+    throw new Error(
+      "OPENAI_API_KEY environment variable is not set. "
+    );
+  }
+
+  const openai = new ChatOpenAI({
+    model: "gpt-4o",
+    temperature: 0.7,
+    streaming: false,
+    maxRetries: 2,
+  });
+
+  const openaiWithTool = openai.bindTools([imageAnalysisTool], {
     tool_choice: "any",
   });
   console.log("Sending message to OpenAI with tool...");

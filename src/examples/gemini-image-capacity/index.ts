@@ -1,5 +1,8 @@
+import dotenv from "dotenv";
 import { HumanMessage } from "@langchain/core/messages";
-import { geminiBase } from "../../shared/utils/models/vertexai";
+import { ChatVertexAI } from "@langchain/google-vertexai";
+
+dotenv.config();
 
 async function fetchCatImage(): Promise<string> {
   const response = await fetch("https://api.thecatapi.com/v1/images/search");
@@ -20,7 +23,19 @@ const NUMBER_OF_IMAGES = 20; // Adjust this constant to test different numbers
 async function testGeminiWithMultipleImages() {
   console.log(`Testing Gemini with ${NUMBER_OF_IMAGES} cat images...\n`);
   
-  const model = geminiBase({ model: 'gemini-2.5-flash-preview-05-20', streaming: false });
+  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
+      "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
+    );
+  }
+
+  const model = new ChatVertexAI({
+    model: 'gemini-2.5-flash-preview-05-20',
+    temperature: 0.7,
+    streaming: false,
+    maxRetries: 2,
+  });
   
   try {
     // Fetch the required number of cat images

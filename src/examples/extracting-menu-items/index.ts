@@ -1,10 +1,13 @@
+import dotenv from 'dotenv';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { HumanMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { geminiBase } from '../../shared/utils/models/vertexai';
-import { gptBase } from '../../shared/utils/models/openai';
+import { ChatVertexAI } from '@langchain/google-vertexai';
+import { ChatOpenAI } from '@langchain/openai';
+
+dotenv.config();
 
 interface MenuItemInput {
   originalName: string;
@@ -221,26 +224,49 @@ async function main() {
   const images = await loadImages(imagesDir);
   console.log(`Loaded ${images.length} images\n`);
 
-  const geminiFlashModel = geminiBase({ 
-    streaming: false, 
+  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
+      "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
+    );
+  }
+
+  if(!process.env.OPENAI_API_KEY) {
+    throw new Error(
+      "OPENAI_API_KEY environment variable is not set. "
+    );
+  }
+
+  const geminiFlashModel = new ChatVertexAI({ 
+    streaming: false,
+    temperature: 0.7,
+    maxRetries: 2, 
     model: 'gemini-2.5-flash-preview-05-20'
   });
   
-  const geminiProModel = geminiBase({ 
-    streaming: false, 
+  const geminiProModel = new ChatVertexAI({ 
+    streaming: false,
+    temperature: 0.7,
+    maxRetries: 2, 
     model: 'gemini-2.5-pro'
   });
   
-  const openaiO4Model = gptBase({ 
+  const openaiO4Model = new ChatOpenAI({ 
     streaming: false,
-    enableThinking: true,
-    model: 'o4-mini'
+    model: 'o4-mini',
+    reasoning: {
+      effort: "high",
+    },
+    maxRetries: 2,
   });
   
-  const openaiO3Model = gptBase({ 
+  const openaiO3Model = new ChatOpenAI({ 
     streaming: false,
-    enableThinking: true,
-    model: 'o3'
+    model: 'o3',
+    reasoning: {
+      effort: "high",
+    },
+    maxRetries: 2,
   });
 
   const models = [
