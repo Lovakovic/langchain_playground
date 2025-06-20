@@ -13,18 +13,33 @@
  * 2. Cat Agent (subgraph) fetches cat pictures
  * 3. Critique Agent reviews and approves/rejects
  * 4. Human input node for approved images
+ * 
+ * Type Hierarchy:
+ * - ParentGraph: Main orchestration graph with custom state
+ *   - cat_agent node: ReActAgentGraph (imported subgraph)
+ *   - critique_agent node: Calls CritiqueAgentGraph internally
+ *   - extract_path node: Simple function node
+ *   - human_input node: Interrupt-based node
+ * 
+ * Each CompiledStateGraph type has 6 generic parameters:
+ * 1. State type - Full state shape
+ * 2. Update type - Partial updates returned by nodes
+ * 3. Node names - Union of all nodes (including "__start__")
+ * 4. Input schema - Expected input format
+ * 5. Output schema - Output format
+ * 6. Config schema - Additional configuration (defaults to StateDefinition)
  */
 
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
-import { Annotation, interrupt, MemorySaver, MessagesAnnotation, StateGraph } from "@langchain/langgraph";
+import { AIMessage, HumanMessage, BaseMessage, BaseMessageLike } from "@langchain/core/messages";
+import { Annotation, interrupt, MemorySaver, MessagesAnnotation, StateGraph, CompiledStateGraph, StateDefinition } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import dotenv from "dotenv";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 
 dotenv.config();
-import { createReActAgent } from "../react_agent";
+import { createReActAgent, type ReActAgentGraph } from "../react_agent";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -122,8 +137,21 @@ function shouldContinueCritique(state: typeof MessagesAnnotation.State) {
   return "end";
 }
 
+/**
+ * Type definition for the Critique Agent graph.
+ * This agent reviews cat images and decides whether to approve or reject them.
+ */
+type CritiqueAgentGraph = CompiledStateGraph<
+  typeof MessagesAnnotation.State,                                                   // State type
+  { messages?: BaseMessage[] | BaseMessage | BaseMessageLike | BaseMessageLike[] }, // Update type
+  "critique" | "tools" | "__start__",                                             // Node names
+  typeof MessagesAnnotation.spec,                                                   // Input schema
+  typeof MessagesAnnotation.spec,                                                   // Output schema
+  StateDefinition                                                                   // Config schema
+>;
+
 // Create critique agent graph
-async function createCritiqueAgent() {
+async function createCritiqueAgent(): Promise<CritiqueAgentGraph> {
   const workflow = new StateGraph(MessagesAnnotation)
     .addNode("critique", callCritiqueModel)
     .addNode("tools", new ToolNode([approveImageTool, removeImageTool]))
@@ -154,7 +182,7 @@ async function critiqueAgentNode(state: typeof ParentStateAnnotation.State) {
     };
   }
   
-  const critiqueAgent = await createCritiqueAgent();
+  const critiqueAgent: CritiqueAgentGraph = await createCritiqueAgent();
   
   // Read the image and create a critique prompt
   const systemPrompt = new HumanMessage({
@@ -264,6 +292,29 @@ function routeAfterCatAgent(state: typeof ParentStateAnnotation.State) {
 }
 
 /**
+ * Type definitions for the Parent Graph
+ */
+type ParentGraphState = typeof ParentStateAnnotation.State;
+type ParentGraphUpdate = {
+  messages?: BaseMessage[] | BaseMessage | BaseMessageLike | BaseMessageLike[];
+  lastCatImagePath?: string | null;
+  critiqueDecision?: "approved" | "rejected" | null;
+};
+type ParentGraphNodes = "cat_agent" | "extract_path" | "critique_agent" | "human_input" | "__start__";
+
+/**
+ * The complete type for the Parent Graph that orchestrates the subgraphs
+ */
+export type ParentGraph = CompiledStateGraph<
+  ParentGraphState,                    // State type
+  ParentGraphUpdate,                   // Update type
+  ParentGraphNodes,                    // Node names
+  typeof ParentStateAnnotation.spec,   // Input schema
+  typeof ParentStateAnnotation.spec,   // Output schema
+  StateDefinition                      // Config schema
+>;
+
+/**
  * Create Parent Orchestration Graph
  * 
  * This is the main graph that coordinates between:
@@ -272,7 +323,7 @@ function routeAfterCatAgent(state: typeof ParentStateAnnotation.State) {
  * 3. Critique Agent - reviews cat pictures
  * 4. Human Input - handles approved images
  */
-export async function createParentGraph() {
+export async function createParentGraph(): Promise<ParentGraph> {
   // Parent graph checkpointer - automatically shared with subgraphs
   const checkpointer = new MemorySaver();
   
@@ -285,7 +336,7 @@ export async function createParentGraph() {
    * - Memory is shared via the parent's checkpointer
    * - State flows seamlessly between graphs
    */
-  const catAgentSubgraph = await createReActAgent();
+  const catAgentSubgraph: ReActAgentGraph = await createReActAgent();
   
   /**
    * Path Extraction Node
@@ -363,7 +414,7 @@ async function main() {
   console.log("2. A Gen Z critic that reviews them with sass");
   console.log("\nType 'exit' or 'quit' to end the conversation\n");
   
-  const parentGraph = await createParentGraph();
+  const parentGraph: ParentGraph = await createParentGraph();
   const threadId = `thread-${Date.now()}`;
   
   const rl = readline.createInterface({
