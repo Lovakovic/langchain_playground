@@ -18,13 +18,23 @@
  * - Real-world API integration without authentication
  * - Error handling for network requests
  * - Performance benefits of parallel execution
+ * 
+ * Graph Architecture:
+ * The graph uses a fan-out/fan-in pattern where extract_location fans out
+ * to 4 parallel branches. LangGraph automatically detects that these nodes
+ * have no dependencies on each other and runs them concurrently.
+ * 
+ * Type Structure:
+ * - DailyBriefingStateType: The full state with all data fields
+ * - DailyBriefingUpdateType: Partial updates from each node
+ * - DailyBriefingNodes: Union of all node names (including "__start__")
+ * - DailyBriefingGraph: The fully typed CompiledStateGraph
  */
 
-import { Annotation, StateGraph, MemorySaver } from "@langchain/langgraph";
-import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
+import { Annotation, CompiledStateGraph, MemorySaver, StateDefinition, StateGraph } from "@langchain/langgraph";
+import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import dotenv from "dotenv";
-import * as readline from "readline";
 import fetch from "node-fetch";
 
 dotenv.config();
@@ -153,7 +163,7 @@ async function fetchWorldNews(state: typeof DailyBriefingState.State) {
       }
     });
     
-    const data = await response.json() as any;
+    const data = await response.json();
     const posts = data.data.children.map((child: any) => ({
       title: child.data.title,
       score: child.data.score,
@@ -191,7 +201,7 @@ async function fetchWeather(state: typeof DailyBriefingState.State) {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
     
     const response = await fetch(url);
-    const weatherData = await response.json() as any;
+    const weatherData = await response.json();
     
     console.log("✅ [Weather] Fetched forecast for", city);
     
@@ -219,7 +229,7 @@ async function fetchFunFact(state: typeof DailyBriefingState.State) {
   try {
     // Use a simple joke API
     const response = await fetch('https://official-joke-api.appspot.com/random_joke');
-    const joke = await response.json() as any;
+    const joke = await response.json();
     
     const funFact = `${joke.setup} ${joke.punchline}`;
     
@@ -348,6 +358,45 @@ Format it nicely with clear sections.`;
 }
 
 /**
+ * Type definitions for the Daily Briefing Graph
+ */
+type DailyBriefingStateType = typeof DailyBriefingState.State;
+type DailyBriefingUpdateType = {
+  location?: string;
+  messages?: BaseMessage[];
+  techNews?: any[];
+  worldNews?: any[];
+  weather?: any;
+  funFact?: string;
+  dailyBriefing?: string;
+};
+type DailyBriefingNodes = 
+  | "extract_location" 
+  | "tech_news" 
+  | "world_news" 
+  | "weather_fetch" 
+  | "fun_fact" 
+  | "create_briefing" 
+  | "__start__";
+
+/**
+ * The complete type for the Daily Briefing Graph
+ * 
+ * This graph demonstrates parallel execution where:
+ * - extract_location fans out to 4 parallel branches
+ * - All branches execute simultaneously
+ * - create_briefing waits for all branches to complete (fan-in)
+ */
+export type DailyBriefingGraph = CompiledStateGraph<
+  DailyBriefingStateType,                // State type
+  DailyBriefingUpdateType,                // Update type
+  DailyBriefingNodes,                     // Node names
+  typeof DailyBriefingState.spec,         // Input schema
+  typeof DailyBriefingState.spec,         // Output schema
+  StateDefinition                         // Config schema
+>;
+
+/**
  * Create the Daily Briefing Graph
  * 
  * Graph structure:
@@ -363,7 +412,7 @@ Format it nicely with clear sections.`;
  *              |
  *            __end__
  */
-export function createDailyBriefingGraph() {
+export function createDailyBriefingGraph(): DailyBriefingGraph {
   const workflow = new StateGraph(DailyBriefingState)
     // Add all nodes
     .addNode("extract_location", extractLocation)
@@ -407,7 +456,7 @@ async function runDemo() {
   console.log("• Weather Forecast (Open-Meteo)");
   console.log("• Fun Fact/Joke\n");
   
-  const graph = createDailyBriefingGraph();
+  const graph: DailyBriefingGraph = createDailyBriefingGraph();
   const threadId = `demo-${Date.now()}`;
   
   const testInput = "Generate my daily briefing for Zagreb";
