@@ -18,8 +18,8 @@
 
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { HumanMessage } from "@langchain/core/messages";
-import { MemorySaver, MessagesAnnotation, StateGraph } from "@langchain/langgraph";
+import { HumanMessage, BaseMessage, BaseMessageLike } from "@langchain/core/messages";
+import { MemorySaver, MessagesAnnotation, StateGraph, CompiledStateGraph, StateDefinition } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import dotenv from "dotenv";
 import { ChatVertexAI } from "@langchain/google-vertexai";
@@ -172,7 +172,27 @@ function shouldContinue(state: typeof MessagesAnnotation.State) {
  * - Process results and think again
  * - Continue until task is complete
  */
-export async function createReActAgent(checkpointer?: BaseCheckpointSaver) {
+/**
+ * Type definition for the compiled ReAct agent graph.
+ * 
+ * The generic parameters are:
+ * 1. State type - The full state shape (messages array)
+ * 2. Update type - Partial state updates returned by nodes
+ * 3. Node names - Union of all node names in the graph
+ * 4. Input schema - Expected input format
+ * 5. Output schema - Output format
+ * 6. Config schema - Additional configuration options
+ */
+export type ReActAgentGraph = CompiledStateGraph<
+  typeof MessagesAnnotation.State,     // State: { messages: BaseMessage[] }
+  { messages?: BaseMessage[] | BaseMessage | BaseMessageLike | BaseMessageLike[] }, // Update: partial state with messages
+  "agent" | "tools" | "__start__",    // Node names (including internal nodes)
+  typeof MessagesAnnotation.spec,       // Input schema
+  typeof MessagesAnnotation.spec,       // Output schema
+  StateDefinition                       // Config schema (default)
+>;
+
+export async function createReActAgent(checkpointer?: BaseCheckpointSaver): Promise<ReActAgentGraph> {
   const workflow = new StateGraph(MessagesAnnotation)
     .addNode("agent", callModel)
     .addNode("tools", new ToolNode([fetchCatPictureTool]))
