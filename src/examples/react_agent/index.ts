@@ -30,6 +30,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import fetch from "node-fetch";
+import { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint/dist/base";
 
 /**
  * Tool Schema Definition
@@ -171,7 +172,7 @@ function shouldContinue(state: typeof MessagesAnnotation.State) {
  * - Process results and think again
  * - Continue until task is complete
  */
-export async function createReActAgent(checkpointer?: any) {
+export async function createReActAgent(checkpointer?: BaseCheckpointSaver) {
   const workflow = new StateGraph(MessagesAnnotation)
     .addNode("agent", callModel)
     .addNode("tools", new ToolNode([fetchCatPictureTool]))
@@ -284,7 +285,7 @@ async function main() {
   // Memory persistence setup
   const checkpointer = new MemorySaver();
   const agent = await createReActAgent(checkpointer);
-  
+
   // Unique session ID ensures isolated conversation threads
   const sessionId = `session-${Date.now()}`;
   
