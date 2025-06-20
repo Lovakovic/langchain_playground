@@ -10,11 +10,26 @@ if (!fs.existsSync(outputDir)){
 }
 
 const options = {
-  density: 100,
+  // density: DPI (dots per inch) for rendering PDF pages
+  // Higher density = better quality but larger file size
+  // 72-150: Low quality, fast rendering, small files
+  // 200-300: Good quality for most use cases
+  // 300+: High quality for detailed documents or OCR
+  density: 300,
+  
   saveFilename: 'page',
   savePath: outputDir,
   format: 'png',
-  // Removed width and height to preserve original aspect ratio
+  
+  // width & height: Set to -1 to let pdf2pic calculate dimensions automatically
+  // This ensures the original PDF page dimensions are preserved
+  // Setting specific values (e.g., width: 800) would force resize and could distort aspect ratio
+  width: -1,
+  height: -1,
+  
+  // preserveAspectRatio: Ensures the PDF's original proportions are maintained
+  // Without this, the image might be stretched or squashed to fit specified dimensions
+  preserveAspectRatio: true
 };
 
 async function pdfToImages(pdfPath: string) {
