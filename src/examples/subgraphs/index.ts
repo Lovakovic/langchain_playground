@@ -491,7 +491,7 @@ async function main() {
               currentAgent = "cat";
               firstChunk = true;
               inSubgraph = true;
-            } else if (event.name === "critiqueAgentNode") {
+            } else if (event.name === "critique_agent") {
               console.log("\n\n🎭 Gen Z Critic analyzing...");
               currentAgent = "critique";
               firstChunk = true;
