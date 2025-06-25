@@ -227,7 +227,7 @@ export { fetchCatPictureTool, callModel, shouldContinue };
  *    - thread_id ensures conversation continuity
  *    - Messages accumulate in checkpointer memory
  */
-async function runWithStreaming(agent: any, input: HumanMessage, sessionId: string) {
+async function runWithStreaming(agent: ReActAgentGraph, input: HumanMessage, sessionId: string) {
   console.log("\n🤔 Agent thinking...");
   
   // streamEvents provides granular control over output
