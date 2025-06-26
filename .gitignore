@@ -23,3 +23,4 @@ node_modules
 /dist/
 /concatenated.txt
 /src/examples/callback-tracing/logs/
+/src/examples/custom-events/logs/
