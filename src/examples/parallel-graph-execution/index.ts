@@ -1,516 +1,733 @@
 /**
- * LangGraph Parallel Execution Example: Daily Briefing Generator
+ * LangGraph Parallel Execution Example: Understanding Fan-In Behavior
  * 
- * This example demonstrates parallel execution by creating a personalized daily briefing
- * that fetches data from multiple sources simultaneously:
+ * This example demonstrates a CRITICAL behavior of LangGraph's parallel execution:
+ * When multiple branches converge into a single node (fan-in pattern), that node
+ * executes MULTIPLE TIMES - once for each incoming branch that completes.
  * 
- * 1. Tech News (Hacker News API)
- * 2. World News (Reddit r/worldnews)
- * 3. Weather Forecast (Open-Meteo)
- * 4. Fun Fact/Joke
+ * THIS IS BY DESIGN! LangGraph does NOT wait for all branches to complete before
+ * executing the fan-in node. Instead, it executes immediately when ANY branch
+ * reaches it, and executes again each time another branch completes.
  * 
- * All branches execute in parallel, then results are aggregated into a
- * personalized daily briefing with activity recommendations.
+ * KEY CONCEPTS DEMONSTRATED:
  * 
- * Key concepts:
- * - Fan-out: Single node splitting into multiple parallel branches
- * - Fan-in: Multiple branches converging into a single node
- * - Real-world API integration without authentication
- * - Error handling for network requests
- * - Performance benefits of parallel execution
+ * 1. FAN-OUT BEHAVIOR:
+ *    - Multiple branches start simultaneously from a single node
+ *    - Each branch executes independently and in parallel
+ *    - Branches with different lengths complete at different times
  * 
- * Graph Architecture:
- * The graph uses a fan-out/fan-in pattern where extract_location fans out
- * to 4 parallel branches. LangGraph automatically detects that these nodes
- * have no dependencies on each other and runs them concurrently.
+ * 2. FAN-IN BEHAVIOR (CRITICAL TO UNDERSTAND):
+ *    - The aggregation node runs MULTIPLE TIMES
+ *    - It executes once for EACH incoming branch as it completes
+ *    - State is updated incrementally with each execution
+ *    - You'll see the aggregation node run N times for N branches
  * 
- * Type Structure:
- * - DailyBriefingStateType: The full state with all data fields
- * - DailyBriefingUpdateType: Partial updates from each node
- * - DailyBriefingNodes: Union of all node names (including "__start__")
- * - DailyBriefingGraph: The fully typed CompiledStateGraph
+ * 3. BRANCH ARCHITECTURE:
+ *    - Quick Analysis (1 node): Completes first, triggers aggregation #1
+ *    - Data Processing (3 nodes): Completes second, triggers aggregation #2
+ *    - External Integration (2-4 nodes): Triggers aggregation #3
+ *    - Quality Assurance (5 nodes): Completes last, triggers aggregation #4
+ * 
+ * GRAPH VISUALIZATION:
+ * ```
+ *                    start_pipeline
+ *                          |
+ *        +---------+-------+-------+---------+
+ *        |         |       |       |         |
+ *   quick_validate | process_s1 |  qa_step1  | external_s1
+ *        |         |       |       |         |
+ *        |         |  process_s2 | qa_step2  | external_s2
+ *        |         |       |       |         |
+ *        |         |  process_s3 | qa_step3  | [conditional]
+ *        |         |       |       |         |
+ *        |         |       |       | qa_step4 | external_s3?
+ *        |         |       |       |         |
+ *        |         |       |       | qa_step5 | external_s4?
+ *        |         |       |       |         |
+ *        +---------+-------+-------+---------+
+ *                          |
+ *                  aggregate_results
+ *                  (RUNS 4 TIMES!)
+ *                          |
+ *                       __end__
+ * ```
+ * 
+ * EXPECTED BEHAVIOR:
+ * 1. All 4 branches start simultaneously after start_pipeline
+ * 2. Quick branch (1 node) finishes first → aggregate_results runs (1st time)
+ * 3. Process branch (3 nodes) finishes → aggregate_results runs (2nd time)
+ * 4. External branch finishes → aggregate_results runs (3rd time)
+ * 5. QA branch (5 nodes) finishes last → aggregate_results runs (4th time)
+ * 
+ * This is NOT a bug - this is how LangGraph is designed to work!
  */
 
-import { Annotation, CompiledStateGraph, MemorySaver, StateDefinition, StateGraph } from "@langchain/langgraph";
+import { 
+  Annotation, 
+  CompiledStateGraph, 
+  MemorySaver, 
+  StateDefinition, 
+  StateGraph 
+} from "@langchain/langgraph";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import dotenv from "dotenv";
-import fetch from "node-fetch";
 
 dotenv.config();
 
 /**
- * State Definition
+ * Pipeline State Definition
  * 
- * Each branch updates its own part of the state:
- * - location: User's location for weather
- * - messages: Conversation history (SHARED with reducer)
- * - techNews: Top tech stories from Hacker News
- * - worldNews: Top world news from Reddit
- * - weather: Weather forecast data
- * - funFact: Random fun fact or joke
- * - dailyBriefing: Final aggregated briefing
- * 
- * CRITICAL: Notice how each parallel node writes to its own dedicated property,
- * except for 'messages' which has a reducer to handle concurrent updates.
- * This is the key to avoiding the INVALID_CONCURRENT_GRAPH_UPDATE error!
+ * Notice how we track aggregation_count to clearly show how many times
+ * the aggregation node has been executed.
  */
-const DailyBriefingState = Annotation.Root({
-  // Written only by extract_location - no parallel conflicts
-  location: Annotation<string>,
+const PipelineState = Annotation.Root({
+  // Input data to process
+  inputData: Annotation<Record<string, any>>,
   
-  // SHARED property - ALL nodes write here, but the reducer handles conflicts
+  // SHARED: Messages with reducer for concurrent updates
   messages: Annotation<BaseMessage[]>({
     reducer: (current, update) => [...current, ...update],
     default: () => []
   }),
   
-  // Each property below is written by exactly ONE parallel node - no conflicts
-  techNews: Annotation<any[]>,     // Only written by tech_news node
-  worldNews: Annotation<any[]>,    // Only written by world_news node  
-  weather: Annotation<any>,        // Only written by weather_fetch node
-  funFact: Annotation<string>,     // Only written by fun_fact node
-  dailyBriefing: Annotation<string> // Only written by create_briefing (after parallel)
+  // SHARED: Execution timeline with timestamps
+  executionTimeline: Annotation<Array<{
+    timestamp: string;
+    node: string;
+    branch: string;
+    message: string;
+  }>>({
+    reducer: (current, update) => [...current, ...update],
+    default: () => []
+  }),
+  
+  // Track how many times aggregation has run (IMPORTANT!)
+  aggregationCount: Annotation<number>({
+    reducer: (current, update) => current + update,
+    default: () => 0
+  }),
+  
+  // Track which branches have completed
+  completedBranches: Annotation<string[]>({
+    reducer: (current, update) => [...current, ...update],
+    default: () => []
+  }),
+  
+  // Branch-specific results
+  quickValidationResult: Annotation<{
+    isValid: boolean;
+    issues: string[];
+    completedAt: string;
+  }>,
+  
+  dataProcessingResult: Annotation<{
+    transformedData: any;
+    processingSteps: string[];
+    completedAt: string;
+  }>,
+  
+  qualityAssuranceResult: Annotation<{
+    qaChecks: Record<string, boolean>;
+    qaScore: number;
+    recommendations: string[];
+    completedAt: string;
+  }>,
+  
+  externalIntegrationResult: Annotation<{
+    apiCalls: string[];
+    responses: any[];
+    completedAt: string;
+  }>,
+  
+  // Variable branch control
+  externalIntegrationSteps: Annotation<number>,
+  
+  // Final aggregated summary
+  pipelineSummary: Annotation<string>,
+  
+  // Performance metrics
+  startTime: Annotation<number>,
+  branchCompletionTimes: Annotation<Record<string, number>>({
+    reducer: (current, update) => ({ ...current, ...update }),
+    default: () => ({})
+  })
 });
 
 /**
- * Location Extraction Node
- * 
- * Extracts location from user input or uses default
+ * Helper function to create timeline entries
  */
-async function extractLocation(state: typeof DailyBriefingState.State) {
-  console.log("\n📍 Extracting location...");
-  
-  const lastMessage = state.messages[state.messages.length - 1];
-  const userInput = lastMessage.content as string;
-  
-  // Simple location extraction - in production, use proper geocoding
-  let location = "New York";
-  let lat = 40.7128;
-  let lon = -74.0060;
-  
-  // Check for common city names in input
-  const cities: Record<string, [number, number]> = {
-    "zagreb": [45.8150, 15.9819],
-    "london": [51.5074, -0.1278],
-    "paris": [48.8566, 2.3522],
-    "tokyo": [35.6762, 139.6503],
-    "sydney": [-33.8688, 151.2093],
-    "san francisco": [37.7749, -122.4194],
-    "los angeles": [34.0522, -118.2437],
-    "chicago": [41.8781, -87.6298],
-    "boston": [42.3601, -71.0589],
-    "seattle": [47.6062, -122.3321],
-    "miami": [25.7617, -80.1918]
+function createTimelineEntry(node: string, branch: string, message: string) {
+  return {
+    timestamp: new Date().toISOString(),
+    node,
+    branch,
+    message
   };
+}
+
+/**
+ * Start Pipeline Node
+ */
+async function startPipeline(state: typeof PipelineState.State) {
+  const startTime = Date.now();
   
-  const lowerInput = userInput.toLowerCase();
-  for (const [city, coords] of Object.entries(cities)) {
-    if (lowerInput.includes(city)) {
-      location = city.charAt(0).toUpperCase() + city.slice(1);
-      [lat, lon] = coords;
-      break;
+  // Simulate input data
+  const inputData = {
+    userId: "user123",
+    transactionId: "tx456",
+    amount: 150.00,
+    items: ["item1", "item2", "item3"],
+    metadata: {
+      source: "web",
+      timestamp: new Date().toISOString()
     }
-  }
+  };
   
-  console.log(`✅ Location set to: ${location} (${lat}, ${lon})`);
+  // Randomly determine external integration complexity (2-4 steps)
+  const externalSteps = Math.floor(Math.random() * 3) + 2;
+  
+  console.log("\n🚀 STARTING PARALLEL PIPELINE EXECUTION");
+  console.log("=" + "=".repeat(60));
+  console.log("📋 Configuration:");
+  console.log(`- Quick Validation: 1 node`);
+  console.log(`- Data Processing: 3 nodes`);
+  console.log(`- Quality Assurance: 5 nodes`);
+  console.log(`- External Integration: ${externalSteps} nodes (dynamic)`);
+  console.log("\n⚠️  IMPORTANT: Watch how the aggregation node runs MULTIPLE times!");
+  console.log("This is expected behavior - it runs once for each completing branch.");
+  console.log("=" + "=".repeat(60) + "\n");
   
   return {
-    location: `${location}|${lat}|${lon}`,
-    messages: [new AIMessage(`Preparing daily briefing for ${location}...`)]
+    inputData,
+    startTime,
+    externalIntegrationSteps: externalSteps,
+    messages: [new AIMessage("Pipeline initialized with parallel branches")],
+    executionTimeline: [
+      createTimelineEntry("start_pipeline", "MAIN", "Pipeline started")
+    ]
   };
 }
 
 /**
- * Tech News Branch (Parallel)
- * 
- * Fetches top stories from Hacker News
- * 
- * SAFE PARALLEL PATTERN: This node returns updates for:
- * - techNews: DEDICATED property (only this node writes to it)
- * - messages: SHARED property (has reducer to handle concurrent updates)
+ * BRANCH 1: Quick Validation (1 node)
+ * This will complete first and trigger the FIRST aggregation
  */
-async function fetchTechNews(state: typeof DailyBriefingState.State) {
-  console.log("\n💻 [Tech News] Fetching from Hacker News...");
+async function quickValidate(state: typeof PipelineState.State) {
+  const branchStart = Date.now();
+  console.log("⚡ [QUICK] Starting validation...");
   
-  try {
-    // Fetch top story IDs
-    const topStoriesResponse = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
-    const topStoryIds = await topStoriesResponse.json() as number[];
-    
-    // Fetch details for top 5 stories
-    const storyPromises = topStoryIds.slice(0, 5).map(async (id) => {
-      const response = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);
-      return response.json();
-    });
-    
-    const stories = await Promise.all(storyPromises);
-    
-    console.log("✅ [Tech News] Fetched", stories.length, "stories");
-    
-    return {
-      techNews: stories,  // Safe: Only this node writes to techNews
-      messages: [new AIMessage(`Fetched ${stories.length} top tech stories from Hacker News`)]  // Safe: messages has reducer
-    };
-  } catch (error) {
-    console.error("❌ [Tech News] Error:", error);
-    return {
-      techNews: [],
-      messages: [new AIMessage("Failed to fetch tech news")]
-    };
+  // Simulate validation logic
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  const issues: string[] = [];
+  if (state.inputData.amount > 1000) {
+    issues.push("High value transaction requires additional review");
   }
-}
-
-/**
- * World News Branch (Parallel)
- * 
- * Fetches news from Reddit r/worldnews
- */
-async function fetchWorldNews(state: typeof DailyBriefingState.State) {
-  console.log("\n🌍 [World News] Fetching from Reddit...");
-  
-  try {
-    const response = await fetch('https://www.reddit.com/r/worldnews/hot.json?limit=5', {
-      headers: {
-        'User-Agent': 'LangGraph-Example/1.0'
-      }
-    });
-    
-    const data = await response.json();
-    const posts = data.data.children.map((child: any) => ({
-      title: child.data.title,
-      score: child.data.score,
-      url: child.data.url,
-      num_comments: child.data.num_comments
-    }));
-    
-    console.log("✅ [World News] Fetched", posts.length, "stories");
-    
-    return {
-      worldNews: posts,
-      messages: [new AIMessage(`Fetched ${posts.length} world news stories from Reddit`)]
-    };
-  } catch (error) {
-    console.error("❌ [World News] Error:", error);
-    return {
-      worldNews: [],
-      messages: [new AIMessage("Failed to fetch world news")]
-    };
+  if (!state.inputData.userId) {
+    issues.push("Missing user ID");
   }
-}
-
-/**
- * Weather Branch (Parallel)
- * 
- * Fetches weather forecast from Open-Meteo
- */
-async function fetchWeather(state: typeof DailyBriefingState.State) {
-  console.log("\n🌤️ [Weather] Fetching forecast...");
   
-  try {
-    // Extract coordinates from location
-    const [city, lat, lon] = state.location.split('|');
-    
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
-    
-    const response = await fetch(url);
-    const weatherData = await response.json();
-    
-    console.log("✅ [Weather] Fetched forecast for", city);
-    
-    return {
-      weather: weatherData,
-      messages: [new AIMessage(`Fetched weather forecast for ${city}`)]
-    };
-  } catch (error) {
-    console.error("❌ [Weather] Error:", error);
-    return {
-      weather: null,
-      messages: [new AIMessage("Failed to fetch weather")]
-    };
-  }
-}
-
-/**
- * Fun Fact Branch (Parallel)
- * 
- * Fetches a random fun fact or joke
- */
-async function fetchFunFact(state: typeof DailyBriefingState.State) {
-  console.log("\n🎲 [Fun Fact] Fetching daily fun fact...");
-  
-  try {
-    // Use a simple joke API
-    const response = await fetch('https://official-joke-api.appspot.com/random_joke');
-    const joke = await response.json();
-    
-    const funFact = `${joke.setup} ${joke.punchline}`;
-    
-    console.log("✅ [Fun Fact] Fetched joke");
-    
-    return {
-      funFact: funFact,
-      messages: [new AIMessage("Fetched daily joke")]
-    };
-  } catch (error) {
-    console.error("❌ [Fun Fact] Error:", error);
-    // Fallback fun facts
-    const facts = [
-      "Did you know? Octopuses have three hearts!",
-      "Fun fact: Bananas are berries, but strawberries aren't!",
-      "Did you know? A group of flamingos is called a 'flamboyance'!",
-      "Fun fact: Honey never spoils. Archaeologists have found 3000-year-old honey that's still edible!"
-    ];
-    return {
-      funFact: facts[Math.floor(Math.random() * facts.length)],
-      messages: [new AIMessage("Used fallback fun fact")]
-    };
-  }
-}
-
-/**
- * Aggregation Node
- * 
- * Combines all parallel results into a personalized daily briefing
- */
-async function createDailyBriefing(state: typeof DailyBriefingState.State) {
-  console.log("\n📰 Creating personalized daily briefing...");
-  
-  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    throw new Error("GOOGLE_APPLICATION_CREDENTIALS not set");
-  }
-
-  const model = new ChatVertexAI({
-    model: 'gemini-2.5-flash',
-    temperature: 0.7,
-  });
-
-  const [city] = state.location.split('|');
-  
-  // Get current date and time
-  const now = new Date();
-  const timeString = now.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    hour12: true 
-  });
-  const dateString = now.toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-  const hour = now.getHours();
-  
-  // Determine time of day
-  let timeOfDay = "day";
-  if (hour >= 5 && hour < 12) timeOfDay = "morning";
-  else if (hour >= 12 && hour < 17) timeOfDay = "afternoon";
-  else if (hour >= 17 && hour < 21) timeOfDay = "evening";
-  else timeOfDay = "night";
-  
-  // Format weather data
-  const weatherSummary = state.weather ? `
-Current: ${state.weather.current.temperature_2m}°C (feels like ${state.weather.current.apparent_temperature}°C)
-Today's High/Low: ${state.weather.daily.temperature_2m_max[0]}°C / ${state.weather.daily.temperature_2m_min[0]}°C
-Precipitation chance: ${state.weather.daily.precipitation_probability_max[0]}%
-Wind: ${state.weather.current.wind_speed_10m} km/h
-` : "Weather data unavailable";
-
-  // Format tech news
-  const techNewsSummary = state.techNews.slice(0, 3).map((story, i) => 
-    `${i + 1}. ${story.title} (${story.score} points)`
-  ).join('\n');
-
-  // Format world news
-  const worldNewsSummary = state.worldNews.slice(0, 3).map((post, i) => 
-    `${i + 1}. ${post.title} (${post.score} upvotes, ${post.num_comments} comments)`
-  ).join('\n');
-
-  const prompt = `Create an engaging, personalized daily briefing for someone in ${city}. 
-
-CURRENT TIME AND DATE:
-- Date: ${dateString}
-- Time: ${timeString}
-- Time of day: ${timeOfDay}
-
-WEATHER:
-${weatherSummary}
-
-TOP TECH NEWS:
-${techNewsSummary}
-
-WORLD NEWS:
-${worldNewsSummary}
-
-FUN FACT OF THE DAY:
-${state.funFact}
-
-Please create a briefing that:
-1. Starts with a time-appropriate greeting (good morning/afternoon/evening/night based on the time)
-2. References the current date and time naturally
-3. Summarizes the weather and suggests time-appropriate activities
-4. Highlights the most interesting tech and world news
-5. Ends with the fun fact
-6. Uses emojis appropriately
-7. Keeps a friendly, conversational tone
-8. Is concise but informative
-9. If it's evening/night, focus on activities for tomorrow or winding down
-
-Format it nicely with clear sections.`;
-
-  const response = await model.invoke(prompt);
-  const briefing = response.content as string;
-
-  console.log("✅ Daily briefing created!");
+  const completedAt = new Date().toISOString();
+  console.log(`✅ [QUICK] Validation complete (${issues.length} issues found)`);
+  console.log(`   → This will trigger aggregation execution #1`);
   
   return {
-    dailyBriefing: briefing,
-    messages: [new AIMessage(briefing)]
+    quickValidationResult: {
+      isValid: issues.length === 0,
+      issues,
+      completedAt
+    },
+    completedBranches: ["quick"],
+    branchCompletionTimes: {
+      quick: Date.now() - branchStart
+    },
+    messages: [new AIMessage(`Quick validation completed with ${issues.length} issues`)],
+    executionTimeline: [
+      createTimelineEntry("quick_validate", "QUICK", `Completed validation (${issues.length} issues)`)
+    ]
   };
 }
 
 /**
- * Type definitions for the Daily Briefing Graph
+ * BRANCH 2: Data Processing Pipeline (3 nodes)
+ * This will complete second and trigger the SECOND aggregation
  */
-type DailyBriefingStateType = typeof DailyBriefingState.State;
-type DailyBriefingUpdateType = {
-  location?: string;
-  messages?: BaseMessage[];
-  techNews?: any[];
-  worldNews?: any[];
-  weather?: any;
-  funFact?: string;
-  dailyBriefing?: string;
-};
-type DailyBriefingNodes = 
-  | "extract_location" 
-  | "tech_news" 
-  | "world_news" 
-  | "weather_fetch" 
-  | "fun_fact" 
-  | "create_briefing" 
+async function processStep1(state: typeof PipelineState.State) {
+  console.log("🔄 [PROCESS] Step 1/3: Data normalization...");
+  await new Promise(resolve => setTimeout(resolve, 400));
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("process_step1", "PROCESS", "Data normalized")
+    ]
+  };
+}
+
+async function processStep2(state: typeof PipelineState.State) {
+  console.log("🔄 [PROCESS] Step 2/3: Transformation...");
+  await new Promise(resolve => setTimeout(resolve, 400));
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("process_step2", "PROCESS", "Data transformed")
+    ]
+  };
+}
+
+async function processStep3(state: typeof PipelineState.State) {
+  const branchStart = Date.now() - 800; // Account for previous steps
+  console.log("🔄 [PROCESS] Step 3/3: Finalization...");
+  await new Promise(resolve => setTimeout(resolve, 400));
+  
+  const transformedData = {
+    ...state.inputData,
+    processed: true,
+    normalizedAmount: state.inputData.amount / 100,
+    itemCount: state.inputData.items.length
+  };
+  
+  console.log("✅ [PROCESS] Data processing complete");
+  console.log(`   → This will trigger aggregation execution #2`);
+  
+  return {
+    dataProcessingResult: {
+      transformedData,
+      processingSteps: ["normalize", "transform", "finalize"],
+      completedAt: new Date().toISOString()
+    },
+    completedBranches: ["process"],
+    branchCompletionTimes: {
+      process: Date.now() - branchStart
+    },
+    messages: [new AIMessage("Data processing pipeline completed")],
+    executionTimeline: [
+      createTimelineEntry("process_step3", "PROCESS", "Processing complete")
+    ]
+  };
+}
+
+/**
+ * BRANCH 3: Quality Assurance (5 nodes)
+ * This will complete last and trigger the FINAL aggregation
+ */
+async function qaStep1(state: typeof PipelineState.State) {
+  console.log("🔍 [QA] Step 1/5: Schema validation...");
+  await new Promise(resolve => setTimeout(resolve, 200));
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("qa_step1", "QA", "Schema validated")
+    ]
+  };
+}
+
+async function qaStep2(state: typeof PipelineState.State) {
+  console.log("🔍 [QA] Step 2/5: Business rules check...");
+  await new Promise(resolve => setTimeout(resolve, 200));
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("qa_step2", "QA", "Business rules verified")
+    ]
+  };
+}
+
+async function qaStep3(state: typeof PipelineState.State) {
+  console.log("🔍 [QA] Step 3/5: Data integrity check...");
+  await new Promise(resolve => setTimeout(resolve, 200));
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("qa_step3", "QA", "Data integrity confirmed")
+    ]
+  };
+}
+
+async function qaStep4(state: typeof PipelineState.State) {
+  console.log("🔍 [QA] Step 4/5: Security scan...");
+  await new Promise(resolve => setTimeout(resolve, 200));
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("qa_step4", "QA", "Security scan passed")
+    ]
+  };
+}
+
+async function qaStep5(state: typeof PipelineState.State) {
+  const branchStart = Date.now() - 800; // Account for previous steps
+  console.log("🔍 [QA] Step 5/5: Final QA report...");
+  await new Promise(resolve => setTimeout(resolve, 200));
+  
+  const qaChecks = {
+    schemaValid: true,
+    businessRulesPass: true,
+    dataIntegrity: true,
+    securityPass: true,
+    performanceAcceptable: true
+  };
+  
+  const qaScore = Object.values(qaChecks).filter(v => v).length / Object.keys(qaChecks).length * 100;
+  
+  console.log(`✅ [QA] Quality assurance complete (Score: ${qaScore}%)`);
+  console.log(`   → This will trigger aggregation execution #4 (final)`);
+  
+  return {
+    qualityAssuranceResult: {
+      qaChecks,
+      qaScore,
+      recommendations: qaScore < 100 ? ["Review failed checks"] : ["All checks passed"],
+      completedAt: new Date().toISOString()
+    },
+    completedBranches: ["qa"],
+    branchCompletionTimes: {
+      qa: Date.now() - branchStart
+    },
+    messages: [new AIMessage(`QA completed with score: ${qaScore}%`)],
+    executionTimeline: [
+      createTimelineEntry("qa_step5", "QA", `QA complete (Score: ${qaScore}%)`)
+    ]
+  };
+}
+
+/**
+ * BRANCH 4: External Integration (2-4 nodes, dynamic)
+ * This will complete third and trigger the THIRD aggregation
+ */
+async function externalStep1(state: typeof PipelineState.State) {
+  console.log(`🌐 [EXTERNAL] Step 1/${state.externalIntegrationSteps}: Auth check...`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("external_step1", "EXTERNAL", "Authentication verified")
+    ]
+  };
+}
+
+async function externalStep2(state: typeof PipelineState.State) {
+  console.log(`🌐 [EXTERNAL] Step 2/${state.externalIntegrationSteps}: Primary API call...`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  const isLastStep = state.externalIntegrationSteps === 2;
+  
+  if (isLastStep) {
+    const branchStart = Date.now() - 1000;
+    console.log("✅ [EXTERNAL] Integration complete");
+    console.log(`   → This will trigger aggregation execution #3`);
+    
+    return {
+      externalIntegrationResult: {
+        apiCalls: ["auth", "primary"],
+        responses: [{ status: "ok" }, { data: "processed" }],
+        completedAt: new Date().toISOString()
+      },
+      completedBranches: ["external"],
+      branchCompletionTimes: {
+        external: Date.now() - branchStart
+      },
+      messages: [new AIMessage("External integration completed (2 API calls)")],
+      executionTimeline: [
+        createTimelineEntry("external_step2", "EXTERNAL", "Integration complete")
+      ]
+    };
+  }
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("external_step2", "EXTERNAL", "Primary API success")
+    ]
+  };
+}
+
+async function externalStep3(state: typeof PipelineState.State) {
+  console.log(`🌐 [EXTERNAL] Step 3/${state.externalIntegrationSteps}: Secondary API call...`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  const isLastStep = state.externalIntegrationSteps === 3;
+  
+  if (isLastStep) {
+    const branchStart = Date.now() - 1500;
+    console.log("✅ [EXTERNAL] Integration complete");
+    console.log(`   → This will trigger aggregation execution #3`);
+    
+    return {
+      externalIntegrationResult: {
+        apiCalls: ["auth", "primary", "secondary"],
+        responses: [{ status: "ok" }, { data: "processed" }, { extra: "data" }],
+        completedAt: new Date().toISOString()
+      },
+      completedBranches: ["external"],
+      branchCompletionTimes: {
+        external: Date.now() - branchStart
+      },
+      messages: [new AIMessage("External integration completed (3 API calls)")],
+      executionTimeline: [
+        createTimelineEntry("external_step3", "EXTERNAL", "Integration complete")
+      ]
+    };
+  }
+  
+  return {
+    executionTimeline: [
+      createTimelineEntry("external_step3", "EXTERNAL", "Secondary API success")
+    ]
+  };
+}
+
+async function externalStep4(state: typeof PipelineState.State) {
+  const branchStart = Date.now() - 2000;
+  console.log(`🌐 [EXTERNAL] Step 4/${state.externalIntegrationSteps}: Webhook notification...`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  console.log("✅ [EXTERNAL] Integration complete");
+  console.log(`   → This will trigger aggregation execution #3`);
+  
+  return {
+    externalIntegrationResult: {
+      apiCalls: ["auth", "primary", "secondary", "webhook"],
+      responses: [{ status: "ok" }, { data: "processed" }, { extra: "data" }, { notified: true }],
+      completedAt: new Date().toISOString()
+    },
+    completedBranches: ["external"],
+    branchCompletionTimes: {
+      external: Date.now() - branchStart
+    },
+    messages: [new AIMessage("External integration completed (4 API calls)")],
+    executionTimeline: [
+      createTimelineEntry("external_step4", "EXTERNAL", "Integration complete")
+    ]
+  };
+}
+
+/**
+ * CRITICAL NODE: Aggregate Results
+ * 
+ * This node demonstrates the FAN-IN BEHAVIOR of LangGraph:
+ * - It runs MULTIPLE TIMES (once for each branch that completes)
+ * - It does NOT wait for all branches to complete before running
+ * - Each execution has access to the current state (partial results)
+ * 
+ * In this example, it will run 4 times:
+ * 1. When Quick Validation completes (fastest)
+ * 2. When Data Processing completes
+ * 3. When External Integration completes
+ * 4. When Quality Assurance completes (slowest)
+ */
+async function aggregateResults(state: typeof PipelineState.State) {
+  // Increment aggregation count to track executions
+  const currentExecution = state.aggregationCount + 1;
+  const totalTime = Date.now() - state.startTime;
+  
+  console.log("\n" + "=".repeat(60));
+  console.log(`🔄 AGGREGATION NODE EXECUTION #${currentExecution} of 4`);
+  console.log("=".repeat(60));
+  console.log(`⏱️  Time since start: ${(totalTime / 1000).toFixed(2)}s`);
+  console.log(`📊 Branches completed so far: ${state.completedBranches.join(", ")}`);
+  
+  // Show which results are available at this execution
+  const availableResults = [];
+  if (state.quickValidationResult) availableResults.push("Quick Validation ✓");
+  if (state.dataProcessingResult) availableResults.push("Data Processing ✓");
+  if (state.externalIntegrationResult) availableResults.push("External Integration ✓");
+  if (state.qualityAssuranceResult) availableResults.push("Quality Assurance ✓");
+  
+  console.log(`📋 Available results at this execution:`);
+  availableResults.forEach(r => console.log(`   - ${r}`));
+  
+  // Show what's still pending
+  const pendingBranches = [];
+  if (!state.quickValidationResult) pendingBranches.push("Quick Validation");
+  if (!state.dataProcessingResult) pendingBranches.push("Data Processing");
+  if (!state.externalIntegrationResult) pendingBranches.push("External Integration");
+  if (!state.qualityAssuranceResult) pendingBranches.push("Quality Assurance");
+  
+  if (pendingBranches.length > 0) {
+    console.log(`⏳ Still waiting for:`);
+    pendingBranches.forEach(b => console.log(`   - ${b}`));
+  }
+  
+  // Create a summary based on what's available
+  const summary = `
+Aggregation Execution #${currentExecution}
+Time: ${(totalTime / 1000).toFixed(2)}s
+Completed: ${availableResults.length}/4 branches
+
+${state.quickValidationResult ? `✓ Quick Validation: ${state.quickValidationResult.isValid ? "PASSED" : "FAILED"} (${state.quickValidationResult.issues.length} issues)` : '⏳ Quick Validation: Pending'}
+${state.dataProcessingResult ? `✓ Data Processing: ${state.dataProcessingResult.processingSteps.length} steps completed` : '⏳ Data Processing: Pending'}
+${state.externalIntegrationResult ? `✓ External Integration: ${state.externalIntegrationResult.apiCalls.length} API calls made` : '⏳ External Integration: Pending'}
+${state.qualityAssuranceResult ? `✓ Quality Assurance: ${state.qualityAssuranceResult.qaScore}% score` : '⏳ Quality Assurance: Pending'}
+`;
+  
+  console.log(summary);
+  
+  if (currentExecution === 4) {
+    console.log("🎉 This is the FINAL aggregation - all branches have completed!");
+    console.log("=".repeat(60) + "\n");
+  } else {
+    console.log("📝 Note: This aggregation node will run again when the next branch completes.");
+    console.log("=".repeat(60) + "\n");
+  }
+  
+  return {
+    aggregationCount: 1,
+    pipelineSummary: summary,
+    messages: [new AIMessage(`Aggregation execution #${currentExecution} completed`)]
+  };
+}
+
+/**
+ * Type Definitions
+ */
+type PipelineStateType = typeof PipelineState.State;
+type PipelineUpdateType = Partial<PipelineStateType>;
+type PipelineNodes = 
+  | "start_pipeline"
+  | "quick_validate"
+  | "process_step1" | "process_step2" | "process_step3"
+  | "qa_step1" | "qa_step2" | "qa_step3" | "qa_step4" | "qa_step5"
+  | "external_step1" | "external_step2" | "external_step3" | "external_step4"
+  | "aggregate_results"
   | "__start__";
 
-/**
- * The complete type for the Daily Briefing Graph
- * 
- * This graph demonstrates parallel execution where:
- * - extract_location fans out to 4 parallel branches
- * - All branches execute simultaneously
- * - create_briefing waits for all branches to complete (fan-in)
- */
-export type DailyBriefingGraph = CompiledStateGraph<
-  DailyBriefingStateType,                // State type
-  DailyBriefingUpdateType,                // Update type
-  DailyBriefingNodes,                     // Node names
-  typeof DailyBriefingState.spec,         // Input schema
-  typeof DailyBriefingState.spec,         // Output schema
-  StateDefinition                         // Config schema
+export type ParallelPipelineGraph = CompiledStateGraph<
+  PipelineStateType,
+  PipelineUpdateType,
+  PipelineNodes,
+  typeof PipelineState.spec,
+  typeof PipelineState.spec,
+  StateDefinition
 >;
 
 /**
- * Create the Daily Briefing Graph
+ * Create the Parallel Pipeline Graph
  * 
- * Graph structure:
- *        extract_location
- *              |
- *     +--------+--------+--------+
- *     |        |        |        |
- * tech_news world_news weather fun_fact  (ALL run in PARALLEL!)
- *     |        |        |        |
- *     +--------+--------+--------+
- *              |
- *        create_briefing
- *              |
- *            __end__
+ * CRITICAL: Notice the FAN-IN pattern where all branches connect to aggregate_results.
+ * This means aggregate_results will execute ONCE for EACH branch that completes,
+ * NOT once after all branches complete!
  */
-export function createDailyBriefingGraph(): DailyBriefingGraph {
-  const workflow = new StateGraph(DailyBriefingState)
-    // Add all nodes
-    .addNode("extract_location", extractLocation)
-    .addNode("tech_news", fetchTechNews)
-    .addNode("world_news", fetchWorldNews)
-    .addNode("weather_fetch", fetchWeather)
-    .addNode("fun_fact", fetchFunFact)
-    .addNode("create_briefing", createDailyBriefing)
+export function createParallelPipelineGraph(): ParallelPipelineGraph {
+  const workflow = new StateGraph(PipelineState)
+    // Initialize
+    .addNode("start_pipeline", startPipeline)
     
-    // Start with location extraction
-    .addEdge("__start__", "extract_location")
+    // Branch 1: Quick Validation (1 node)
+    .addNode("quick_validate", quickValidate)
     
-    // FAN-OUT: All 4 branches start from extract_location
-    // These execute in PARALLEL!
-    .addEdge("extract_location", "tech_news")
-    .addEdge("extract_location", "world_news")
-    .addEdge("extract_location", "weather_fetch")
-    .addEdge("extract_location", "fun_fact")
+    // Branch 2: Data Processing (3 nodes)
+    .addNode("process_step1", processStep1)
+    .addNode("process_step2", processStep2)
+    .addNode("process_step3", processStep3)
     
-    // FAN-IN: All branches must complete before briefing
-    // CRITICAL MOMENT: This is where state updates from all parallel nodes merge!
-    // If multiple nodes tried to update the same property without a reducer,
-    // the INVALID_CONCURRENT_GRAPH_UPDATE error would occur right here.
-    .addEdge("tech_news", "create_briefing")
-    .addEdge("world_news", "create_briefing")
-    .addEdge("weather_fetch", "create_briefing")
-    .addEdge("fun_fact", "create_briefing")
+    // Branch 3: Quality Assurance (5 nodes)
+    .addNode("qa_step1", qaStep1)
+    .addNode("qa_step2", qaStep2)
+    .addNode("qa_step3", qaStep3)
+    .addNode("qa_step4", qaStep4)
+    .addNode("qa_step5", qaStep5)
     
-    // End after briefing
-    .addEdge("create_briefing", "__end__");
+    // Branch 4: External Integration (2-4 nodes)
+    .addNode("external_step1", externalStep1)
+    .addNode("external_step2", externalStep2)
+    .addNode("external_step3", externalStep3)
+    .addNode("external_step4", externalStep4)
+    
+    // Aggregation - RUNS MULTIPLE TIMES!
+    .addNode("aggregate_results", aggregateResults)
+    
+    // === EDGES ===
+    
+    // Start flow
+    .addEdge("__start__", "start_pipeline")
+    
+    // FAN-OUT: All branches start simultaneously
+    .addEdge("start_pipeline", "quick_validate")
+    .addEdge("start_pipeline", "process_step1")
+    .addEdge("start_pipeline", "qa_step1")
+    .addEdge("start_pipeline", "external_step1")
+    
+    // Branch 1 flow (direct to aggregate)
+    .addEdge("quick_validate", "aggregate_results")
+    
+    // Branch 2 flow (sequential steps)
+    .addEdge("process_step1", "process_step2")
+    .addEdge("process_step2", "process_step3")
+    .addEdge("process_step3", "aggregate_results")
+    
+    // Branch 3 flow (sequential steps)
+    .addEdge("qa_step1", "qa_step2")
+    .addEdge("qa_step2", "qa_step3")
+    .addEdge("qa_step3", "qa_step4")
+    .addEdge("qa_step4", "qa_step5")
+    .addEdge("qa_step5", "aggregate_results")
+    
+    // Branch 4 flow (conditional length)
+    .addEdge("external_step1", "external_step2")
+    .addConditionalEdges(
+      "external_step2",
+      (state) => state.externalIntegrationSteps === 2 ? "aggregate_results" : "external_step3",
+      {
+        "aggregate_results": "aggregate_results",
+        "external_step3": "external_step3"
+      }
+    )
+    .addConditionalEdges(
+      "external_step3",
+      (state) => state.externalIntegrationSteps === 3 ? "aggregate_results" : "external_step4",
+      {
+        "aggregate_results": "aggregate_results",
+        "external_step4": "external_step4"
+      }
+    )
+    .addEdge("external_step4", "aggregate_results")
+    
+    // End
+    .addEdge("aggregate_results", "__end__");
 
   const checkpointer = new MemorySaver();
   return workflow.compile({ checkpointer });
 }
 
 /**
- * Run Demo
+ * Demonstration Runner
  */
 async function runDemo() {
-  console.log("=== 📰 LangGraph Daily Briefing Generator ===");
-  console.log("\nThis example fetches data from 4 different sources IN PARALLEL:");
-  console.log("• Tech News (Hacker News)");
-  console.log("• World News (Reddit)"); 
-  console.log("• Weather Forecast (Open-Meteo)");
-  console.log("• Fun Fact/Joke\n");
+  console.log("=".repeat(70));
+  console.log("🚀 LANGGRAPH FAN-IN BEHAVIOR DEMONSTRATION");
+  console.log("=".repeat(70));
+  console.log("\nThis example demonstrates a CRITICAL LangGraph behavior:");
+  console.log("When multiple branches converge into a single node (fan-in),");
+  console.log("that node executes MULTIPLE TIMES - once for each branch!");
+  console.log("\nWatch carefully as the aggregation node runs 4 separate times.");
+  console.log("=".repeat(70));
   
-  const graph: DailyBriefingGraph = createDailyBriefingGraph();
-  const threadId = `demo-${Date.now()}`;
-  
-  const testInput = "Generate my daily briefing for Zagreb";
-  
-  console.log("Demo input:", testInput);
-  console.log("\n⚡ Starting parallel data fetching...\n");
-  
-  const startTime = Date.now();
+  const graph = createParallelPipelineGraph();
+  const threadId = `parallel-demo-${Date.now()}`;
   
   try {
     const result = await graph.invoke(
       {
-        messages: [new HumanMessage(testInput)],
-        location: ""
+        messages: [new HumanMessage("Start parallel pipeline execution")]
       },
       {
         configurable: { thread_id: threadId }
       }
     );
     
-    const endTime = Date.now();
-    const totalTime = ((endTime - startTime) / 1000).toFixed(1);
-    
-    console.log("\n" + "=".repeat(60));
-    console.log("📰 DAILY BRIEFING");
-    console.log("=".repeat(60));
-    console.log(result.dailyBriefing);
-    console.log("=".repeat(60));
-    
-    console.log(`\n⏱️  Total execution time: ${totalTime}s`);
-    console.log("✨ All 4 data sources were fetched in parallel!");
-    
-    // Show what data was collected
-    console.log("\n📊 Data Summary:");
-    console.log(`- Tech News: ${result.techNews.length} stories`);
-    console.log(`- World News: ${result.worldNews.length} stories`);
-    console.log(`- Weather: ${result.weather ? 'Available' : 'Not available'}`);
-    console.log(`- Fun Fact: ${result.funFact ? 'Fetched' : 'Not available'}`);
+    console.log("\n" + "=".repeat(70));
+    console.log("✨ DEMONSTRATION COMPLETE");
+    console.log("=".repeat(70));
+    console.log("\n📊 FINAL SUMMARY:");
+    console.log(`- The aggregation node ran ${result.aggregationCount} times`);
+    console.log(`- Each execution processed partial results as branches completed`);
+    console.log(`- This is the intended behavior of LangGraph's fan-in pattern!`);
+    console.log("\n💡 KEY TAKEAWAY:");
+    console.log("In LangGraph, a fan-in node does NOT wait for all inputs.");
+    console.log("It executes immediately when ANY input arrives, and again");
+    console.log("for each subsequent input. Design your aggregation logic");
+    console.log("accordingly to handle incremental updates!");
+    console.log("=".repeat(70));
     
   } catch (error) {
     console.error("Error:", error);
@@ -518,88 +735,82 @@ async function runDemo() {
 }
 
 /**
- * Key Benefits of This Example:
+ * UNDERSTANDING LANGGRAPH'S FAN-IN BEHAVIOR
  * 
- * 1. REAL-WORLD APIS:
- *    - No authentication required
- *    - Actual useful data
- *    - Free tier friendly
+ * This is a fundamental difference from other workflow engines:
  * 
- * 2. GENUINE PARALLEL BENEFIT:
- *    - 4 independent API calls
- *    - ~3 seconds if sequential
- *    - ~1 second when parallel
+ * 1. TRADITIONAL WORKFLOW ENGINES (Join/Barrier Pattern):
+ *    - Fan-in nodes wait for ALL incoming branches
+ *    - Execute ONCE when all branches complete
+ *    - Example: "Wait for all parallel tasks to finish, then aggregate"
  * 
- * 3. PRACTICAL APPLICATION:
- *    - Daily briefing generator
- *    - Weather-based recommendations
- *    - Personalized content
+ * 2. LANGGRAPH (Streaming Pattern):
+ *    - Fan-in nodes execute IMMEDIATELY when ANY branch arrives
+ *    - Execute AGAIN for each additional branch
+ *    - Example: "Process results as they arrive, update incrementally"
  * 
- * 4. ERROR RESILIENCE:
- *    - Each branch handles failures
- *    - Graceful degradation
- *    - Fallback content
+ * WHY THIS DESIGN?
+ * - Enables real-time streaming of results
+ * - Allows for progressive updates and partial results
+ * - More flexible for different aggregation strategies
+ * - Better for long-running processes where you want early feedback
  * 
- * 5. VISUAL FEEDBACK:
- *    - See parallel execution timing
- *    - Progress indicators
- *    - Clear final output
+ * IMPLICATIONS FOR YOUR DESIGN:
+ * - Your aggregation nodes must handle partial data gracefully
+ * - Use state to track which branches have completed
+ * - Consider if you need to differentiate between partial and final results
+ * - Leverage reducers for accumulating results across executions
  * 
- * ===================================================================
- * COMMON PITFALLS: The INVALID_CONCURRENT_GRAPH_UPDATE Error
- * ===================================================================
+ * COMMON PATTERNS:
  * 
- * The most common error when building parallel graphs is:
- * "Detected duplicate writes to channels in a single step"
+ * 1. Incremental Aggregation:
+ *    ```typescript
+ *    function aggregate(state) {
+ *      const completed = state.completedBranches.length;
+ *      const total = 4; // known number of branches
+ *      
+ *      if (completed < total) {
+ *        return { status: "partial", progress: `${completed}/${total}` };
+ *      } else {
+ *        return { status: "complete", finalResult: computeFinal(state) };
+ *      }
+ *    }
+ *    ```
  * 
- * This happens when multiple parallel nodes try to update the same 
- * state property without a reducer function to resolve conflicts.
+ * 2. Streaming Updates:
+ *    ```typescript
+ *    function aggregate(state) {
+ *      // Process whatever is available
+ *      const currentResults = processAvailableData(state);
+ *      
+ *      // Stream update to user
+ *      return {
+ *        streamUpdate: currentResults,
+ *        isComplete: state.completedBranches.length === expectedBranches
+ *      };
+ *    }
+ *    ```
  * 
- * EXAMPLE OF WHAT WOULD BREAK THIS GRAPH:
- * 
- * 1. Add a property without a reducer:
- *    lastUpdateTime: Annotation<string>  // No reducer!
- * 
- * 2. Have multiple parallel nodes update it:
- *    // In fetchTechNews:
- *    return { techNews: stories, lastUpdateTime: new Date().toISOString() }
- *    
- *    // In fetchWorldNews:  
- *    return { worldNews: posts, lastUpdateTime: new Date().toISOString() }
- * 
- * 3. Result: CRASH! LangGraph doesn't know which update to keep.
- * 
- * HOW TO FIX:
- * 
- * Option 1 - Use dedicated properties:
- *    techNewsUpdateTime: Annotation<string>
- *    worldNewsUpdateTime: Annotation<string>
- * 
- * Option 2 - Add a reducer (if you need shared state):
- *    lastUpdateTime: Annotation<string>({
- *      reducer: (current, update) => update  // Last write wins
- *    })
- * 
- * Option 3 - Use an array with reducer:
- *    updateTimes: Annotation<string[]>({
- *      reducer: (current, update) => [...current, ...update]
- *    })
- * 
- * BEST PRACTICE:
- * - Each parallel node should write to its own dedicated properties
- * - Use reducers for any shared properties (like 'messages' in this example)
- * - Think carefully about state conflicts during graph design
- * 
- * WHY THIS EXAMPLE WORKS:
- * - Each data type (techNews, worldNews, etc.) has its own property
- * - The shared 'messages' property has a reducer that concatenates updates
- * - No two parallel nodes write to the same non-reducer property
+ * 3. Conditional Final Processing:
+ *    ```typescript
+ *    function aggregate(state) {
+ *      // Always update partial results
+ *      updatePartialResults(state);
+ *      
+ *      // Only run expensive final processing when all complete
+ *      if (allBranchesComplete(state)) {
+ *        return runFinalProcessing(state);
+ *      }
+ *      
+ *      return state;
+ *    }
+ *    ```
  */
 
-// Export for use as a module
-export { DailyBriefingState };
+// Export components for reuse
+export { PipelineState, createTimelineEntry };
 
-// Run demo if this file is executed directly
+// Run demo if executed directly
 if (require.main === module) {
   runDemo().catch(console.error);
 }
