@@ -24,3 +24,6 @@ node_modules
 /concatenated.txt
 /src/examples/callback-tracing/logs/
 /src/examples/custom-events/logs/
+/src/examples/tracing/callback-tracing/logs/
+/src/examples/tracing/custom-events/logs/
+/src/examples/tracing/complex-graph-tracing/logs/
