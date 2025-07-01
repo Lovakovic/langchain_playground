@@ -62,15 +62,8 @@
  * This is NOT a bug - this is how LangGraph is designed to work!
  */
 
-import { 
-  Annotation, 
-  CompiledStateGraph, 
-  MemorySaver, 
-  StateDefinition, 
-  StateGraph 
-} from "@langchain/langgraph";
-import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
-import { ChatVertexAI } from "@langchain/google-vertexai";
+import {Annotation, CompiledStateGraph, MemorySaver, StateDefinition, StateGraph} from "@langchain/langgraph";
+import {AIMessage, BaseMessage, HumanMessage} from "@langchain/core/messages";
 import dotenv from "dotenv";
 
 dotenv.config();

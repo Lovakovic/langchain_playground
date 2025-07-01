@@ -1,275 +1,200 @@
 /**
- * LangGraph Aborting Execution Example
- * 
- * This example demonstrates how to cancel/abort a running graph execution
- * using AbortController and signal support in LangGraph.
- * 
- * Key concepts covered:
- * 1. Using AbortController to create cancellable operations
- * 2. Passing abort signals to graph.invoke() and graph.stream()
- * 3. Handling abort errors gracefully
- * 4. Understanding when and how graph execution stops
- * 
- * The graph simulates a long-running process with multiple steps that can
- * be interrupted at any point during execution.
- * 
+ * LangGraph Execution Control: Comprehensive Abort & Timeout Examples
+ *
+ * This expanded example demonstrates all the ways to cancel/abort/timeout
+ * a running graph execution in LangGraph:
+ *
+ * 1. Manual abort with AbortController
+ * 2. Time-based timeouts with AbortSignal.timeout()
+ * 3. Manual timeout implementation
+ * 4. Combined recursion limit + timeout
+ * 5. Progressive timeout strategies
+ * 6. Resource-based cancellation
+ * 7. User-cancellable operations with timeout fallback
+ *
  * IMPORTANT: Abort support requires @langchain/core>=0.2.20
  */
 
-import { 
-  Annotation, 
-  CompiledStateGraph, 
-  MemorySaver, 
-  StateGraph 
-} from "@langchain/langgraph";
-import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
+import {Annotation, GraphRecursionError, MemorySaver, StateGraph} from "@langchain/langgraph";
+import {AIMessage, BaseMessage, HumanMessage} from "@langchain/core/messages";
+import { randomUUID } from "crypto";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 /**
  * State definition for our processing pipeline
- * 
- * This state tracks:
- * - messages: Communication history (with reducer for accumulation)
- * - currentStep: Which step we're currently on
- * - processedData: Data being processed (with reducer for accumulation)
- * - isComplete: Whether the entire pipeline has finished
  */
 const ProcessingState = Annotation.Root({
-  // Messages accumulate across all nodes
   messages: Annotation<BaseMessage[]>({
     reducer: (current, update) => [...current, ...update],
     default: () => []
   }),
-  
-  // Simple string to track current step
   currentStep: Annotation<string>,
-  
-  // Processed data accumulates as we go
   processedData: Annotation<string[]>({
     reducer: (current, update) => [...current, ...update],
     default: () => []
   }),
-  
-  // Boolean flag for completion status
-  isComplete: Annotation<boolean>
+  isComplete: Annotation<boolean>,
+  // New fields for timeout examples
+  iterationCount: Annotation<number>({
+    reducer: (current, update) => current + update,
+    default: () => 0
+  }),
+  resourcesUsed: Annotation<number>({
+    reducer: (current, update) => current + update,
+    default: () => 0
+  })
 });
 
 /**
  * Node 1: Simulates data fetching that takes time
- * 
- * This node demonstrates:
- * - Long-running operations (5 seconds total)
- * - Multiple async steps that can be interrupted
- * - State updates after completion
- * 
- * When aborted, execution will stop at the next await point
  */
 async function fetchData(state: typeof ProcessingState.State) {
   console.log("📡 [Step 1] Starting data fetch...");
-  
-  // Simulate fetching data in 5 batches, 1 second each
-  // The abort signal is checked between each await
+
   for (let i = 1; i <= 5; i++) {
     await new Promise(resolve => setTimeout(resolve, 1000));
     console.log(`   Fetching batch ${i}/5...`);
   }
-  
+
   console.log("✅ Data fetch complete!");
-  
-  // Return state updates
+
   return {
     currentStep: "fetched",
     processedData: ["batch1", "batch2", "batch3", "batch4", "batch5"],
-    messages: [new AIMessage("Data fetching completed successfully")]
+    messages: [new AIMessage("Data fetching completed successfully")],
+    resourcesUsed: state.resourcesUsed + 5
   };
 }
 
 /**
  * Node 2: Processes the fetched data
- * 
- * This node:
- * - Depends on data from the previous node
- * - Takes 4 seconds total (800ms per batch)
- * - Transforms the data by adding a prefix
- * 
- * Shows how abort works in the middle of a graph execution
  */
 async function processData(state: typeof ProcessingState.State) {
   console.log("⚙️  [Step 2] Starting data processing...");
-  
-  // Process each batch with 800ms delay
-  // Abort can interrupt between any of these operations
+
   for (let i = 0; i < state.processedData.length; i++) {
     await new Promise(resolve => setTimeout(resolve, 800));
     console.log(`   Processing ${state.processedData[i]}...`);
   }
-  
+
   console.log("✅ Data processing complete!");
-  
-  // Transform the data and update state
+
   return {
     currentStep: "processed",
     processedData: state.processedData.map(d => `processed_${d}`),
-    messages: [new AIMessage("Data processing completed successfully")]
+    messages: [new AIMessage("Data processing completed successfully")],
+    resourcesUsed: state.resourcesUsed + state.processedData.length
   };
 }
 
 /**
  * Node 3: Saves the processed results
- * 
- * Final node that:
- * - Simulates database writes (2 seconds)
- * - Updates cache (1 second)
- * - Marks the pipeline as complete
- * 
- * If aborted here, partial results won't be saved
  */
 async function saveResults(state: typeof ProcessingState.State) {
   console.log("💾 [Step 3] Saving results...");
-  
-  // Simulate database write - can be interrupted here
+
   await new Promise(resolve => setTimeout(resolve, 2000));
   console.log("   Writing to database...");
-  
-  // Simulate cache update - or here
+
   await new Promise(resolve => setTimeout(resolve, 1000));
   console.log("   Updating cache...");
-  
+
   console.log("✅ Results saved!");
-  
-  // Mark pipeline as complete
+
   return {
     currentStep: "completed",
     isComplete: true,
-    messages: [new AIMessage("Results saved successfully")]
+    messages: [new AIMessage("Results saved successfully")],
+    resourcesUsed: state.resourcesUsed + 2
   };
 }
 
 /**
- * Creates the processing graph
- * 
- * Simple linear graph structure:
- * __start__ -> fetch_data -> process_data -> save_results -> __end__
- * 
- * Each node can be interrupted when an abort signal is sent
+ * Creates the basic processing graph
  */
 function createProcessingGraph() {
   const workflow = new StateGraph(ProcessingState)
-    // Add nodes
     .addNode("fetch_data", fetchData)
     .addNode("process_data", processData)
     .addNode("save_results", saveResults)
-    
-    // Define linear flow
     .addEdge("__start__", "fetch_data")
     .addEdge("fetch_data", "process_data")
     .addEdge("process_data", "save_results")
     .addEdge("save_results", "__end__");
 
-  // Add checkpointer for state persistence
   const checkpointer = new MemorySaver();
   return workflow.compile({ checkpointer });
 }
 
 /**
- * SCENARIO 1: Normal execution without interruption
- * 
- * Shows how the graph runs to completion when no abort signal is provided.
- * The entire pipeline takes about 12 seconds:
- * - Fetch: 5 seconds
- * - Process: 4 seconds  
- * - Save: 3 seconds
+ * Creates a looping graph for demonstrating recursion limits
  */
-async function runNormalExecution() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 SCENARIO 1: Normal Execution (No Interruption)");
-  console.log("=".repeat(60) + "\n");
-  
-  const graph = createProcessingGraph();
-  const threadId = `normal-${Date.now()}`;
-  
-  const startTime = Date.now();
-  
-  try {
-    // Invoke the graph without any abort signal
-    const result = await graph.invoke(
-      {
-        messages: [new HumanMessage("Start processing")]
-      },
-      {
-        configurable: { thread_id: threadId }
-        // Note: No signal property here
-      }
-    );
-    
-    const duration = Date.now() - startTime;
-    console.log(`\n✨ Execution completed in ${(duration / 1000).toFixed(2)}s`);
-    console.log(`Final state: ${result.currentStep}`);
-    
-  } catch (error) {
-    console.error("Error:", error);
+function createLoopingGraph() {
+  async function incrementNode(state: typeof ProcessingState.State) {
+    console.log(`🔄 Iteration ${state.iterationCount + 1}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    return {
+      iterationCount: state.iterationCount + 1,
+      messages: [new AIMessage(`Completed iteration ${state.iterationCount + 1}`)]
+    };
   }
+
+  function shouldContinue(state: typeof ProcessingState.State) {
+    // This creates an infinite loop unless stopped by recursion limit
+    return state.iterationCount < 100 ? "increment" : "__end__";
+  }
+
+  const workflow = new StateGraph(ProcessingState)
+    .addNode("increment", incrementNode)
+    .addEdge("__start__", "increment")
+    .addConditionalEdges("increment", shouldContinue, {
+      increment: "increment",
+      __end__: "__end__"
+    });
+
+  return workflow.compile({ checkpointer: new MemorySaver() });
 }
 
 /**
- * SCENARIO 2: Aborting execution with AbortController
- * 
- * Demonstrates how to:
- * 1. Create an AbortController instance
- * 2. Pass its signal to graph.invoke()
- * 3. Trigger abort after a specific time
- * 4. Handle the abort error gracefully
- * 
- * @param abortAfterMs - Milliseconds to wait before aborting
+ * EXAMPLE 1: Basic timeout with AbortSignal.timeout()
+ *
+ * The simplest way to add a timeout - using the built-in static method
  */
-async function runAbortedExecution(abortAfterMs: number) {
+async function example1_basicTimeout() {
   console.log("\n" + "=".repeat(60));
-  console.log(`📋 SCENARIO 2: Aborted Execution (Cancel after ${abortAfterMs}ms)`);
+  console.log("📋 EXAMPLE 1: Basic Timeout with AbortSignal.timeout()");
   console.log("=".repeat(60) + "\n");
-  
+
   const graph = createProcessingGraph();
-  const threadId = `aborted-${Date.now()}`;
-  
-  // Step 1: Create an AbortController
-  // This is a standard Web API for cancellable operations
-  const controller = new AbortController();
-  
-  // Step 2: Set a timeout to abort the execution
-  // In real apps, this could be triggered by user action
-  const abortTimeout = setTimeout(() => {
-    console.log(`\n⚠️  ABORTING EXECUTION after ${abortAfterMs}ms...`);
-    controller.abort(); // This sends the abort signal
-  }, abortAfterMs);
-  
+  const threadId = `timeout-basic-${Date.now()}`;
+  const timeoutMs = 6000; // 6 seconds - will timeout during processing
+
+  console.log(`⏰ Setting timeout to ${timeoutMs}ms`);
+  console.log("Expected: Should timeout during data processing step\n");
+
   const startTime = Date.now();
-  
+
   try {
-    // Step 3: Pass the signal to graph.invoke()
+    // Using AbortSignal.timeout() - the simplest approach
     const result = await graph.invoke(
-      {
-        messages: [new HumanMessage("Start processing")]
-      },
+      { messages: [new HumanMessage("Start processing")] },
       {
         configurable: { thread_id: threadId },
-        signal: controller.signal  // <-- The key part!
+        signal: AbortSignal.timeout(timeoutMs) // <-- Simple timeout!
       }
     );
-    
-    // If we reach here, execution completed before abort
-    clearTimeout(abortTimeout);
-    const duration = Date.now() - startTime;
-    console.log(`\n✨ Execution completed before abort in ${(duration / 1000).toFixed(2)}s`);
-    
+
+    console.log("\n✨ Execution completed before timeout");
+
   } catch (error: any) {
-    clearTimeout(abortTimeout);
     const duration = Date.now() - startTime;
-    
-    // Step 4: Handle abort errors specifically
-    if (error.name === 'AbortError' || error.message === 'Aborted') {
-      console.log(`\n🛑 Execution successfully aborted after ${(duration / 1000).toFixed(2)}s`);
-      console.log("The graph stopped processing as requested.");
+
+    if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted') {
+      console.log(`\n⏱️  Execution timed out after ${(duration / 1000).toFixed(2)}s`);
+      console.log("This is expected behavior - the timeout worked!");
     } else {
       console.error("\n❌ Unexpected error:", error);
     }
@@ -277,65 +202,438 @@ async function runAbortedExecution(abortAfterMs: number) {
 }
 
 /**
- * SCENARIO 3: Aborting a streaming execution
- * 
- * Shows that abort signals work with streaming too!
- * Streaming is useful when you want to:
- * - Get intermediate results as nodes complete
- * - Show progress to users in real-time
- * - Cancel based on intermediate results
- * 
- * @param abortAfterMs - Milliseconds to wait before aborting
+ * EXAMPLE 2: Manual timeout with AbortController
+ *
+ * More control - can clear timeout on success
  */
-async function runStreamingAbort(abortAfterMs: number) {
+async function example2_manualTimeout() {
   console.log("\n" + "=".repeat(60));
-  console.log(`📋 SCENARIO 3: Streaming with Abort (Cancel after ${abortAfterMs}ms)`);
+  console.log("📋 EXAMPLE 2: Manual Timeout with AbortController");
   console.log("=".repeat(60) + "\n");
-  
+
   const graph = createProcessingGraph();
-  const threadId = `streaming-${Date.now()}`;
-  
+  const threadId = `timeout-manual-${Date.now()}`;
+  const timeoutMs = 8000; // 8 seconds - might complete or timeout
+
+  console.log(`⏰ Setting manual timeout to ${timeoutMs}ms`);
+  console.log("Expected: Might complete or timeout during save step\n");
+
   const controller = new AbortController();
-  
-  const abortTimeout = setTimeout(() => {
-    console.log(`\n⚠️  ABORTING STREAM after ${abortAfterMs}ms...`);
-    controller.abort();
-  }, abortAfterMs);
-  
   const startTime = Date.now();
-  
+
+  // Set up timeout
+  const timeoutId = setTimeout(() => {
+    console.log("\n⚠️  Timeout triggered!");
+    controller.abort(new Error("Operation timed out"));
+  }, timeoutMs);
+
   try {
-    console.log("🔄 Starting streaming execution...\n");
-    
-    // Use graph.stream() instead of graph.invoke()
-    // Signal works the same way!
-    const stream = await graph.stream(
-      {
-        messages: [new HumanMessage("Start processing")]
-      },
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Start processing")] },
       {
         configurable: { thread_id: threadId },
-        signal: controller.signal  // Same signal pattern
+        signal: controller.signal
       }
     );
-    
-    // Process stream chunks as they arrive
-    for await (const chunk of stream) {
-      console.log("📦 Received stream chunk:", Object.keys(chunk)[0]);
-      // In real apps, you could update UI or check conditions here
-    }
-    
-    clearTimeout(abortTimeout);
+
+    // Important: Clear timeout on success!
+    clearTimeout(timeoutId);
     const duration = Date.now() - startTime;
-    console.log(`\n✨ Stream completed in ${(duration / 1000).toFixed(2)}s`);
-    
+    console.log(`\n✨ Completed successfully in ${(duration / 1000).toFixed(2)}s`);
+
   } catch (error: any) {
-    clearTimeout(abortTimeout);
+    clearTimeout(timeoutId);
     const duration = Date.now() - startTime;
-    
-    // Handle abort errors (slightly different error messages in streaming)
-    if (error.name === 'AbortError' || error.message === 'Aborted' || error.message === 'Abort') {
-      console.log(`\n🛑 Stream successfully aborted after ${(duration / 1000).toFixed(2)}s`);
+
+    if (error.name === 'AbortError' || error.message === 'Operation timed out' || error.message === 'Aborted') {
+      console.log(`\n⏱️  Timed out after ${(duration / 1000).toFixed(2)}s`);
+    } else {
+      console.error("\n❌ Unexpected error:", error);
+    }
+  }
+}
+
+/**
+ * EXAMPLE 3: Combining recursion limit with timeout
+ *
+ * Shows how to use both step-based and time-based limits
+ */
+async function example3_combinedLimits() {
+  console.log("\n" + "=".repeat(60));
+  console.log("📋 EXAMPLE 3: Combined Recursion Limit + Timeout");
+  console.log("=".repeat(60) + "\n");
+
+  const graph = createLoopingGraph();
+  const threadId = `combined-${Date.now()}`;
+
+  console.log("⏰ Timeout: 3000ms");
+  console.log("🔢 Recursion limit: 10 steps");
+  console.log("Expected: Should hit recursion limit first\n");
+
+  const startTime = Date.now();
+
+  try {
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Start loop")] },
+      {
+        configurable: { thread_id: threadId },
+        signal: AbortSignal.timeout(3000), // 3 second timeout
+        recursionLimit: 10 // Maximum 10 iterations
+      }
+    );
+
+    console.log("\n✨ Completed successfully");
+    console.log(`Final iteration count: ${result.iterationCount}`);
+
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+
+    if (error instanceof GraphRecursionError) {
+      console.log(`\n🔢 Hit recursion limit after ${(duration / 1000).toFixed(2)}s`);
+      console.log("The step limit was reached before the timeout");
+    } else if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted') {
+      console.log(`\n⏱️  Hit timeout after ${(duration / 1000).toFixed(2)}s`);
+    } else {
+      console.error("\n❌ Unexpected error:", error);
+    }
+  }
+}
+
+/**
+ * EXAMPLE 4: Progressive timeout strategy
+ *
+ * Retries with increasing timeouts
+ */
+async function example4_progressiveTimeout() {
+  console.log("\n" + "=".repeat(60));
+  console.log("📋 EXAMPLE 4: Progressive Timeout Strategy");
+  console.log("=".repeat(60) + "\n");
+
+  const graph = createProcessingGraph();
+  const baseTimeout = 2000; // Start with 2 seconds
+  const maxAttempts = 3;
+
+  console.log(`📈 Progressive timeouts: ${baseTimeout}ms, ${baseTimeout * 2}ms, ${baseTimeout * 4}ms`);
+  console.log("Expected: First attempts fail, last one succeeds\n");
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const timeout = baseTimeout * Math.pow(2, attempt - 1);
+    const threadId = `progressive-${Date.now()}-attempt${attempt}`;
+
+    console.log(`\n🔄 Attempt ${attempt}/${maxAttempts} with timeout ${timeout}ms`);
+
+    const startTime = Date.now();
+
+    try {
+      const result = await graph.invoke(
+        { messages: [new HumanMessage("Start processing")] },
+        {
+          configurable: { thread_id: threadId },
+          signal: AbortSignal.timeout(timeout)
+        }
+      );
+
+      const duration = Date.now() - startTime;
+      console.log(`✅ Success on attempt ${attempt} after ${(duration / 1000).toFixed(2)}s`);
+      break; // Success, exit loop
+
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+
+      if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted') {
+        console.log(`⏱️  Attempt ${attempt} timed out after ${(duration / 1000).toFixed(2)}s`);
+
+        if (attempt === maxAttempts) {
+          console.log("\n❌ All attempts exhausted");
+        }
+      } else {
+        console.error("❌ Unexpected error:", error);
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * EXAMPLE 5: User-cancellable with timeout fallback
+ *
+ * Combines manual cancellation with automatic timeout
+ */
+async function example5_userCancellableWithTimeout() {
+  console.log("\n" + "=".repeat(60));
+  console.log("📋 EXAMPLE 5: User-Cancellable + Timeout Fallback");
+  console.log("=".repeat(60) + "\n");
+
+  const graph = createProcessingGraph();
+  const threadId = `user-cancel-${Date.now()}`;
+
+  console.log("🔘 User can cancel at any time");
+  console.log("⏰ Automatic timeout after 15 seconds");
+  console.log("Expected: Will simulate user cancellation after 4 seconds\n");
+
+  // Create separate controllers
+  const userController = new AbortController();
+  const timeoutSignal = AbortSignal.timeout(15000); // 15 second fallback
+
+  // Simulate user pressing cancel after 4 seconds
+  setTimeout(() => {
+    console.log("\n👤 USER PRESSED CANCEL!");
+    userController.abort(new Error("User cancelled"));
+  }, 4000);
+
+  const startTime = Date.now();
+
+  try {
+    // Combine signals - aborts if either triggers
+    const combinedSignal = AbortSignal.any([
+      userController.signal,
+      timeoutSignal
+    ]);
+
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Start processing")] },
+      {
+        configurable: { thread_id: threadId },
+        signal: combinedSignal
+      }
+    );
+
+    console.log("\n✨ Completed successfully");
+
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+
+    if (userController.signal.aborted) {
+      console.log(`\n👤 User cancelled after ${(duration / 1000).toFixed(2)}s`);
+    } else if (error.name === 'TimeoutError') {
+      console.log(`\n⏱️  Automatic timeout after ${(duration / 1000).toFixed(2)}s`);
+    } else {
+      console.error("\n❌ Unexpected error:", error);
+    }
+  }
+}
+
+/**
+ * EXAMPLE 6: Resource-based cancellation
+ *
+ * Cancel when resource usage exceeds limit
+ */
+async function example6_resourceBasedCancellation() {
+  console.log("\n" + "=".repeat(60));
+  console.log("📋 EXAMPLE 6: Resource-Based Cancellation");
+  console.log("=".repeat(60) + "\n");
+
+  const graph = createProcessingGraph();
+  const threadId = `resource-${Date.now()}`;
+
+  const resourceLimit = 8;
+  console.log(`📊 Resource limit: ${resourceLimit} units`);
+  console.log("Expected: Should cancel when resources exceed limit\n");
+
+  const resourceController = new AbortController();
+  const checkInterval = 500; // Check every 500ms
+
+  // Monitor resource usage
+  let lastResourceCheck = 0;
+  const resourceMonitor = setInterval(async () => {
+    try {
+      const state = await graph.getState({
+        configurable: { thread_id: threadId }
+      });
+
+      if (state && state.values && typeof state.values.resourcesUsed === 'number') {
+        lastResourceCheck = state.values.resourcesUsed;
+        if (state.values.resourcesUsed > resourceLimit) {
+          console.log(`\n📊 Resource limit exceeded: ${state.values.resourcesUsed}/${resourceLimit}`);
+          resourceController.abort(new Error("Resource limit exceeded"));
+          clearInterval(resourceMonitor);
+        }
+      }
+    } catch (error) {
+      // State might not exist yet
+    }
+  }, checkInterval);
+
+  const startTime = Date.now();
+
+  try {
+    const result = await graph.invoke(
+      { messages: [new HumanMessage("Start processing")] },
+      {
+        configurable: { thread_id: threadId },
+        signal: resourceController.signal
+      }
+    );
+
+    clearInterval(resourceMonitor);
+    console.log("\n✨ Completed within resource limits");
+    console.log(`Resources used: ${result.resourcesUsed || 0}`);
+
+  } catch (error: any) {
+    clearInterval(resourceMonitor);
+    const duration = Date.now() - startTime;
+
+    if (error.message === "Resource limit exceeded") {
+      console.log(`\n📊 Cancelled due to resource limit after ${(duration / 1000).toFixed(2)}s`);
+    } else if (error.name === 'AbortError' || error.message === 'Aborted') {
+      console.log(`\n📊 Cancelled due to resource limit after ${(duration / 1000).toFixed(2)}s`);
+    } else {
+      console.error("\n❌ Unexpected error:", error);
+    }
+  }
+}
+
+/**
+ * EXAMPLE 7: Streaming with timeout
+ *
+ * Shows timeout works with streaming too
+ */
+async function example7_streamingWithTimeout() {
+  console.log("\n" + "=".repeat(60));
+  console.log("📋 EXAMPLE 7: Streaming with Timeout");
+  console.log("=".repeat(60) + "\n");
+
+  const graph = createProcessingGraph();
+  const threadId = `streaming-timeout-${Date.now()}`;
+  const timeoutMs = 7000;
+
+  console.log(`⏰ Streaming with ${timeoutMs}ms timeout`);
+  console.log("Expected: Should receive some chunks before timeout\n");
+
+  const startTime = Date.now();
+
+  try {
+    const stream = await graph.stream(
+      { messages: [new HumanMessage("Start processing")] },
+      {
+        configurable: { thread_id: threadId },
+        signal: AbortSignal.timeout(timeoutMs)
+      }
+    );
+
+    console.log("📡 Streaming results:\n");
+
+    for await (const chunk of stream) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`[${elapsed}s] Received chunk:`, Object.keys(chunk)[0]);
+    }
+
+    console.log("\n✨ Stream completed successfully");
+
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+
+    if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted') {
+      console.log(`\n⏱️  Stream timed out after ${(duration / 1000).toFixed(2)}s`);
+    } else {
+      console.error("\n❌ Unexpected error:", error);
+    }
+  }
+}
+
+/**
+ * Utility: Create a timeout manager class for reusable timeout logic
+ */
+class TimeoutManager {
+  private activeOperations: Map<string, { controller: AbortController; timeout?: NodeJS.Timeout }> = new Map();
+
+  async runWithTimeout<T>(
+    operation: (signal: AbortSignal) => Promise<T>,
+    options: {
+      timeoutMs?: number;
+      operationId?: string;
+      onTimeout?: () => void;
+    } = {}
+  ): Promise<T> {
+    const {
+      timeoutMs = 30000,
+      operationId = randomUUID(),
+      onTimeout
+    } = options;
+
+    const controller = new AbortController();
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    if (timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        controller.abort(new Error("Timeout"));
+        if (onTimeout) onTimeout();
+      }, timeoutMs);
+    }
+
+    this.activeOperations.set(operationId, { controller, timeout: timeoutId });
+
+    try {
+      const result = await operation(controller.signal);
+      this.cleanup(operationId);
+      return result;
+    } catch (error) {
+      this.cleanup(operationId);
+      throw error;
+    }
+  }
+
+  cancel(operationId: string) {
+    const operation = this.activeOperations.get(operationId);
+    if (operation) {
+      operation.controller.abort(new Error("Manually cancelled"));
+      this.cleanup(operationId);
+    }
+  }
+
+  cancelAll() {
+    for (const [id, operation] of this.activeOperations) {
+      operation.controller.abort(new Error("All operations cancelled"));
+    }
+    this.activeOperations.clear();
+  }
+
+  private cleanup(operationId: string) {
+    const operation = this.activeOperations.get(operationId);
+    if (operation) {
+      if (operation.timeout) clearTimeout(operation.timeout);
+      this.activeOperations.delete(operationId);
+    }
+  }
+}
+
+/**
+ * EXAMPLE 8: Using the TimeoutManager utility
+ */
+async function example8_timeoutManager() {
+  console.log("\n" + "=".repeat(60));
+  console.log("📋 EXAMPLE 8: TimeoutManager Utility Class");
+  console.log("=".repeat(60) + "\n");
+
+  const graph = createProcessingGraph();
+  const manager = new TimeoutManager();
+
+  console.log("🛠️  Using reusable TimeoutManager");
+  console.log("Expected: Clean timeout handling with automatic cleanup\n");
+
+  try {
+    const result = await manager.runWithTimeout(
+      async (signal) => {
+        return await graph.invoke(
+          { messages: [new HumanMessage("Start processing")] },
+          {
+            configurable: { thread_id: `manager-${Date.now()}` },
+            signal
+          }
+        );
+      },
+      {
+        timeoutMs: 5000,
+        operationId: "my-operation",
+        onTimeout: () => console.log("\n⚠️  TimeoutManager: Operation timed out!")
+      }
+    );
+
+    console.log("\n✨ Operation completed successfully");
+
+  } catch (error: any) {
+    if (error.message === "Timeout" || error.name === 'AbortError' || error.message === 'Aborted') {
+      console.log("\n⏱️  Handled by TimeoutManager");
     } else {
       console.error("\n❌ Unexpected error:", error);
     }
@@ -344,102 +642,54 @@ async function runStreamingAbort(abortAfterMs: number) {
 
 /**
  * Main demo runner
- * 
- * Runs through all scenarios to demonstrate:
- * 1. Normal execution (baseline)
- * 2. Early abort (during fetch)
- * 3. Mid-execution abort (during processing)
- * 4. Streaming with abort
  */
-async function runDemo() {
+async function runAllExamples() {
   console.log("=".repeat(70));
-  console.log("🚀 LANGGRAPH ABORT EXECUTION DEMONSTRATION");
+  console.log("🚀 LANGGRAPH EXECUTION CONTROL: COMPREHENSIVE EXAMPLES");
   console.log("=".repeat(70));
-  console.log("\nThis example shows how to cancel long-running graph executions");
-  console.log("using AbortController and signal support.");
-  console.log("\nThe example graph has 3 steps:");
-  console.log("1. Fetch Data (5 seconds)");
-  console.log("2. Process Data (4 seconds)"); 
-  console.log("3. Save Results (3 seconds)");
-  console.log("Total: ~12 seconds if run to completion");
+  console.log("\nThis demonstration shows all the ways to control graph execution:");
+  console.log("- Timeouts (various strategies)");
+  console.log("- Manual cancellation");
+  console.log("- Recursion limits");
+  console.log("- Combined approaches");
   console.log("=".repeat(70));
-  
-  // Scenario 1: Baseline - show normal execution time
-  await runNormalExecution();
-  
-  // Scenario 2a: Abort early (during fetch step)
-  await runAbortedExecution(2500);
-  
-  // Scenario 2b: Abort later (during process step)
-  await runAbortedExecution(7000);
-  
-  // Scenario 3: Show abort works with streaming too
-  await runStreamingAbort(3000);
-  
+
+  // Run all examples
+  await example1_basicTimeout();
+  await example2_manualTimeout();
+  await example3_combinedLimits();
+  await example4_progressiveTimeout();
+  await example5_userCancellableWithTimeout();
+  await example6_resourceBasedCancellation();
+  await example7_streamingWithTimeout();
+  await example8_timeoutManager();
+
   console.log("\n" + "=".repeat(70));
-  console.log("✨ DEMONSTRATION COMPLETE");
+  console.log("✨ ALL EXAMPLES COMPLETE");
   console.log("=".repeat(70));
   console.log("\n💡 KEY TAKEAWAYS:");
-  console.log("- Use AbortController to create cancellable executions");
-  console.log("- Pass the signal to graph.invoke() or graph.stream()");
-  console.log("- Execution stops cleanly at the next opportunity");
-  console.log("- Works with both regular invocation and streaming");
-  console.log("- Useful for user-initiated cancellations or timeouts");
+  console.log("1. Use AbortSignal.timeout() for simple time-based limits");
+  console.log("2. Use AbortController for more control (can cancel manually)");
+  console.log("3. Use recursionLimit for step-based limits");
+  console.log("4. Combine multiple strategies for robust control");
+  console.log("5. Always clean up timeouts and event listeners");
+  console.log("6. Consider progressive timeouts for unreliable operations");
+  console.log("7. AbortSignal.any() combines multiple signals effectively");
   console.log("=".repeat(70) + "\n");
+  
+  // Give some time for any lingering async operations to complete
+  await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
-/**
- * ADDITIONAL USAGE PATTERNS
- * 
- * 1. User-initiated cancellation:
- * ```typescript
- * const controller = new AbortController();
- * 
- * // Wire up to UI cancel button
- * cancelButton.onclick = () => controller.abort();
- * 
- * // Pass to graph
- * await graph.invoke(input, { signal: controller.signal });
- * ```
- * 
- * 2. Timeout pattern:
- * ```typescript
- * const controller = new AbortController();
- * const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
- * 
- * try {
- *   const result = await graph.invoke(input, { signal: controller.signal });
- *   clearTimeout(timeoutId);
- * } catch (error) {
- *   // Handle timeout
- * }
- * ```
- * 
- * 3. Conditional abort based on results:
- * ```typescript
- * const controller = new AbortController();
- * 
- * for await (const chunk of graph.stream(input, { signal: controller.signal })) {
- *   if (shouldAbort(chunk)) {
- *     controller.abort();
- *     break;
- *   }
- * }
- * ```
- * 
- * 4. Cleanup on abort:
- * ```typescript
- * controller.signal.addEventListener('abort', () => {
- *   // Perform cleanup
- *   console.log('Cleaning up resources...');
- * });
- * ```
- */
-
-// Run the demo
+// Run if this is the main module
 if (require.main === module) {
-  runDemo().catch(console.error);
+  runAllExamples().catch(console.error);
 }
 
 // Export for reuse
-export { createProcessingGraph, ProcessingState };
+export {
+  createProcessingGraph,
+  createLoopingGraph,
+  ProcessingState,
+  TimeoutManager
+};
