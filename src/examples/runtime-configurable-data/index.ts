@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { HumanMessage, BaseMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { MessagesAnnotation, StateGraph } from "@langchain/langgraph";
 import { MemorySaver } from "@langchain/langgraph-checkpoint";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
