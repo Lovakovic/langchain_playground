@@ -49,7 +49,7 @@ function calculateAdaptiveDPI(pdfPath: string, targetPixelWidth: number = 2400):
   return dpi;
 }
 
-async function pdfToImages(pdfPath: string, useJpeg: boolean = false) {
+async function pdfToImages(pdfPath: string, usePng: boolean = false) {
   try {
     // Calculate adaptive DPI based on PDF size
     const adaptiveDPI = calculateAdaptiveDPI(pdfPath);
@@ -62,7 +62,7 @@ async function pdfToImages(pdfPath: string, useJpeg: boolean = false) {
       
       saveFilename: 'page',
       savePath: outputDir,
-      format: useJpeg ? 'jpeg' : 'png',
+      format: usePng ? 'png' : 'jpeg',
       
       // width & height: Set to -1 to let pdf2pic calculate dimensions automatically
       // This ensures the original PDF page dimensions are preserved
@@ -75,29 +75,29 @@ async function pdfToImages(pdfPath: string, useJpeg: boolean = false) {
       preserveAspectRatio: true
     };
     
-    // Add JPEG quality setting if using JPEG format
-    if (useJpeg) {
+    // Add JPEG quality setting if using JPEG format (default)
+    if (!usePng) {
       options.quality = 95; // High quality for OCR
     }
     
     const storeAsImage = fromPath(pdfPath, options);
     const outputFiles = await storeAsImage.bulk(-1);
     console.log('Successfully converted PDF to images:', outputFiles);
-    console.log(`Format: ${useJpeg ? 'JPEG' : 'PNG'}`);
+    console.log(`Format: ${usePng ? 'PNG' : 'JPEG'}`);
   } catch (error) {
     console.error('Error converting PDF to images:', error);
   }
 }
 
 const pdfFilePath = process.argv[2];
-const useJpeg = process.argv[3] === '--jpeg';
+const usePng = process.argv[3] === '--png';
 
 if (!pdfFilePath) {
   console.error('Please provide the path to the PDF file as an argument.');
-  console.error('Usage: yarn ts-node src/playground/pdf_screenshot/index.ts <pdf-path> [--jpeg]');
+  console.error('Usage: yarn ts-node src/playground/pdf_screenshot/index.ts <pdf-path> [--png]');
   process.exit(1);
 }
 
 const absolutePdfPath = path.resolve(pdfFilePath);
 
-pdfToImages(absolutePdfPath, useJpeg);
+pdfToImages(absolutePdfPath, usePng);
