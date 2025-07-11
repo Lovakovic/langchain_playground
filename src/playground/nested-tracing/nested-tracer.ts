@@ -12,6 +12,10 @@ import { ToolCall } from '@langchain/core/dist/messages/tool';
  * rather than just tracking raw node names.
  * 
  * Similar to monkey-ai's nodeToPhaseMap, this provides semantic meaning to graph execution.
+ * 
+ * ARCHITECTURAL IMPROVEMENT: The tracer now uses LangChain's internal hierarchy
+ * (run.parent_run_id and runMap) instead of manual stack management for more
+ * robust and reliable context tracking.
  */
 const nodeToPhaseMap: Record<string, { phase: ProcessingPhase; message: string }> = {
   // Master graph nodes - top-level orchestration
@@ -79,18 +83,7 @@ export class NestedTracer extends BaseTracer {
    */
   private currentNodeStack: Array<{ name: string; runId: string; level: number }> = [];
   
-  /**
-   * Run metadata - stores detailed information about each LangChain run
-   * 
-   * LangChain creates a "run" for each node execution. We store metadata
-   * about each run to understand the hierarchy and relationships.
-   */
-  private runMetadata = new Map<string, { 
-    nodeName: string; 
-    parentRunId?: string; 
-    level: number;
-    executionPath: string[];
-  }>();
+  // Removed: runMetadata - now using LangChain's built-in hierarchy through runMap
   
   /**
    * Captured events - stores all events we've captured during execution
@@ -146,43 +139,49 @@ export class NestedTracer extends BaseTracer {
   }
 
   /**
-   * Get the name of the parent node from our metadata
+   * Get the name of the parent graph node using LangChain's run hierarchy
    * 
-   * This is used to understand the immediate parent-child relationship.
+   * This traverses up the parent chain to find the immediate parent graph node.
    */
   private getParentNodeName(run: Run): string | undefined {
     if (!run.parent_run_id) return undefined;
     
-    const parentMetadata = this.runMetadata.get(run.parent_run_id);
-    return parentMetadata?.nodeName;
+    const parentRun = this.runMap.get(run.parent_run_id);
+    if (parentRun && this.isGraphNode(parentRun.name)) {
+      return parentRun.name;
+    }
+    
+    // If immediate parent is not a graph node, traverse up to find graph node
+    return parentRun ? this.getParentNodeName(parentRun) : undefined;
   }
 
   /**
-   * Calculate the nesting level (graph depth) for a run
+   * Calculate the nesting level (graph depth) for a run using LangChain's hierarchy
    * 
    * Level 0 = master graph
    * Level 1 = first-level subgraph  
    * Level 2 = subgraph within subgraph, etc.
    * 
-   * We traverse up the parent chain counting user nodes (not system nodes).
+   * We traverse up the parent chain using runMap, counting graph nodes (not LLM nodes).
    */
   private getGraphLevel(run: Run): number {
     let level = 0;
-    let currentRunId = run.parent_run_id;
+    let currentRun: Run | undefined = run;
     
-    while (currentRunId) {
-      const parentMetadata = this.runMetadata.get(currentRunId);
-      if (parentMetadata && this.isUserNode(parentMetadata.nodeName)) {
+    // Traverse up the parent chain using LangChain's runMap
+    while (currentRun?.parent_run_id) {
+      const parentRun = this.runMap.get(currentRun.parent_run_id);
+      if (parentRun && this.isGraphNode(parentRun.name)) {
         level++;
       }
-      currentRunId = this.runMetadata.get(currentRunId)?.parentRunId;
+      currentRun = parentRun;
     }
     
     return level;
   }
 
   /**
-   * Build the complete execution path from root to current node
+   * Build the complete execution path from root to current node using LangChain's hierarchy
    * 
    * This creates an array like ["extraction", "structure_analysis_node"] 
    * showing exactly how we got to the current node.
@@ -191,15 +190,16 @@ export class NestedTracer extends BaseTracer {
    */
   private getExecutionPath(run: Run): string[] {
     const path: string[] = [];
-    let currentRunId: string | undefined = run.id;
+    let currentRun: Run | undefined = run;
     
-    // Walk up the parent chain, building the path
-    while (currentRunId) {
-      const metadata = this.runMetadata.get(currentRunId);
-      if (metadata && this.isUserNode(metadata.nodeName)) {
-        path.unshift(metadata.nodeName); // Add to beginning of array
+    // Walk up the parent chain using runMap, building the path (only graph nodes)
+    while (currentRun) {
+      if (this.isGraphNode(currentRun.name)) {
+        path.unshift(currentRun.name); // Add to beginning of array
       }
-      currentRunId = metadata?.parentRunId;
+      
+      // Move to parent using LangChain's hierarchy
+      currentRun = currentRun.parent_run_id ? this.runMap.get(currentRun.parent_run_id) : undefined;
     }
     
     return path;
@@ -220,6 +220,20 @@ export class NestedTracer extends BaseTracer {
            !nodeName.includes('ChannelRead');
   }
 
+  /**
+   * Check if a node is a graph node (not an LLM or tool node)
+   * 
+   * Graph nodes are the actual nodes in our LangGraph (like 'structure_analysis_node'),
+   * while LLM nodes are the model instances (like 'ChatVertexAI').
+   */
+  private isGraphNode(nodeName: string): boolean {
+    return this.isUserNode(nodeName) && 
+           !nodeName.includes('ChatVertexAI') &&
+           !nodeName.includes('ChatOpenAI') &&
+           !nodeName.includes('ChatAnthropic') &&
+           nodeName in nodeToPhaseMap; // Must be in our known graph nodes
+  }
+
   // =================== EVENT TRACKING METHODS ===================
   
   /**
@@ -229,28 +243,6 @@ export class NestedTracer extends BaseTracer {
    * For every user node that starts, we update our tracking structures.
    */
   onChainStart(run: Run): void {
-    const isUserNode = this.isUserNode(run.name);
-    
-    if (isUserNode) {
-      const level = this.getGraphLevel(run);
-      const executionPath = this.getExecutionPath(run);
-      
-      // Store metadata about this run for later reference
-      this.runMetadata.set(run.id, {
-        nodeName: run.name,
-        parentRunId: run.parent_run_id || undefined,
-        level,
-        executionPath: [...executionPath, run.name]
-      });
-
-      // Push onto our execution stack
-      this.currentNodeStack.push({ 
-        name: run.name, 
-        runId: run.id, 
-        level 
-      });
-    }
-
     // Emit phase start event if this node has a defined phase
     const phaseInfo = nodeToPhaseMap[run.name];
     if (phaseInfo) {
@@ -369,7 +361,7 @@ export class NestedTracer extends BaseTracer {
           totalTokens: this.totalTokens,
           totalInputTokens: this.totalInputTokens,
           totalOutputTokens: this.totalOutputTokens,
-          parentNode: this.getCurrentNodeName(),
+          parentNode: this.getCurrentNodeName(run),
           level: this.getGraphLevel(run)
         },
       }, 'llm:end', run);
@@ -381,9 +373,9 @@ export class NestedTracer extends BaseTracer {
 
     if (responseMessage?.tool_calls && Array.isArray(responseMessage.tool_calls) && responseMessage.tool_calls.length > 0) {
       responseMessage.tool_calls.forEach((toolCall: ToolCall) => {
-        // Get complete execution context
-        const currentNode = this.getCurrentNodeName();
-        const parentNode = this.getParentNodeFromStack();
+        // Get complete execution context using LangChain's hierarchy
+        const currentNode = this.getCurrentNodeName(run);
+        const parentNode = this.getParentNodeName(run);
         const executionPath = this.getExecutionPath(run);
         
         // Emit tool call event with COMPLETE context
@@ -397,8 +389,8 @@ export class NestedTracer extends BaseTracer {
             
             currentNode,                                    // Immediate node executing the tool
             parentNode,                                     // Parent of the current node
-            masterGraphNode: this.getMasterGraphNode(),     // Top-level master graph node
-            subgraphNode: this.getSubgraphNode(),          // First-level subgraph node
+            masterGraphNode: this.getMasterGraphNode(run), // Top-level master graph node
+            subgraphNode: this.getSubgraphNode(run),       // First-level subgraph node
             executionPath,                                  // Complete path from root
             level: this.getGraphLevel(run),                // Nesting depth
             
@@ -419,44 +411,49 @@ export class NestedTracer extends BaseTracer {
   // =================== HELPER METHODS FOR NODE ASSOCIATION ===================
 
   /**
-   * Get the name of the currently executing node from our stack
+   * Get the name of the currently executing node using LangChain's hierarchy
    */
-  private getCurrentNodeName(): string {
-    return this.currentNodeStack[this.currentNodeStack.length - 1]?.name || 'unknown';
+  private getCurrentNodeName(run: Run): string {
+    // Find the closest user node in the hierarchy (could be current run or a parent)
+    let currentRun: Run | undefined = run;
+    
+    while (currentRun) {
+      if (this.isUserNode(currentRun.name)) {
+        return currentRun.name;
+      }
+      currentRun = currentRun.parent_run_id ? this.runMap.get(currentRun.parent_run_id) : undefined;
+    }
+    
+    return 'unknown';
   }
 
   /**
-   * Get the parent node from our execution stack
-   */
-  private getParentNodeFromStack(): string | undefined {
-    return this.currentNodeStack[this.currentNodeStack.length - 2]?.name;
-  }
-
-  /**
-   * Find the master graph node (level 0) in our execution stack
+   * Find the master graph node (level 0) using LangChain's hierarchy
    * 
    * This tells us which top-level operation initiated this tool call.
    * Critical for understanding the business context.
    */
-  private getMasterGraphNode(): string | undefined {
-    return this.currentNodeStack.find(node => node.level === 0)?.name;
+  private getMasterGraphNode(run: Run): string | undefined {
+    const executionPath = this.getExecutionPath(run);
+    return executionPath.length > 0 ? executionPath[0] : undefined;
   }
 
   /**
-   * Find the immediate subgraph node (level 1) in our execution stack
+   * Find the immediate subgraph node (level 1) using LangChain's hierarchy
    * 
    * This tells us which subgraph the tool call is executing within.
    * Essential for monkey-ai style architecture with nested subgraphs.
    */
-  private getSubgraphNode(): string | undefined {
-    return this.currentNodeStack.find(node => node.level === 1)?.name;
+  private getSubgraphNode(run: Run): string | undefined {
+    const executionPath = this.getExecutionPath(run);
+    return executionPath.length > 1 ? executionPath[1] : undefined;
   }
 
   /**
-   * Determine the current processing phase based on node context
+   * Determine the current processing phase based on node context using LangChain's hierarchy
    */
   private getCurrentPhase(run: Run): ProcessingPhase {
-    const currentNode = this.getCurrentNodeName();
+    const currentNode = this.getCurrentNodeName(run);
     return nodeToPhaseMap[currentNode]?.phase || ProcessingPhase.EXTRACTION;
   }
 

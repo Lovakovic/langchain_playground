@@ -104,7 +104,7 @@ The demo will show real-time event capture:
 
 ## Analysis Features
 
-The tracer provides comprehensive analysis:
+The tracer provides comprehensive analysis using LangChain's internal hierarchy:
 
 ### Execution Summary
 - Total events captured
