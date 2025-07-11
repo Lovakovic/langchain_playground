@@ -34,6 +34,23 @@ async function runNestedTracingDemo() {
       console.log(`${levelIndent}  🔗 Subgraph: ${event.metadata?.subgraphNode || 'direct'}`);
       console.log(`${levelIndent}  📊 Path: ${event.executionPath?.join(' -> ')}`);
     }
+    
+    if (event.type === 'custom:event') {
+      console.log(`${levelIndent}  📢 Custom Event: ${event.metadata?.eventName}`);
+      console.log(`${levelIndent}  📍 Node: ${event.metadata?.currentNode}`);
+      console.log(`${levelIndent}  🏗️  Master: ${event.metadata?.masterGraphNode}`);
+      console.log(`${levelIndent}  🔗 Subgraph: ${event.metadata?.subgraphNode || 'direct'}`);
+      console.log(`${levelIndent}  📊 Path: ${event.executionPath?.join(' -> ')}`);
+      
+      // Show interesting custom event data
+      if (event.metadata?.eventData) {
+        const data = event.metadata.eventData;
+        const keys = Object.keys(data).slice(0, 3); // Show first 3 keys
+        if (keys.length > 0) {
+          console.log(`${levelIndent}  📋 Data: ${keys.map(k => `${k}=${data[k]}`).join(', ')}`);
+        }
+      }
+    }
   });
 
   // Create test input data
@@ -125,6 +142,93 @@ Beer contains: Gluten
       console.log(`   ├─ Model: ${event.metadata?.modelName}`);
       console.log(`   └─ Tool ID: ${event.metadata?.toolCallId}`);
     });
+
+    // Custom events analysis
+    console.log('\n📢 CUSTOM EVENTS ANALYSIS:');
+    const customEvents = tracer.getCustomEvents();
+    
+    if (customEvents.length > 0) {
+      // Group custom events by type for analysis
+      const eventsByType = customEvents.reduce((acc, event) => {
+        const eventName = event.metadata?.eventName || 'unknown';
+        if (!acc[eventName]) acc[eventName] = [];
+        acc[eventName].push(event);
+        return acc;
+      }, {} as Record<string, typeof customEvents>);
+
+      console.log(`\nTotal custom events captured: ${customEvents.length}\n`);
+
+      // Show event types and counts
+      Object.entries(eventsByType).forEach(([eventName, events]) => {
+        console.log(`📊 ${eventName}: ${events.length} events`);
+        
+        // Show hierarchy distribution for this event type
+        const hierarchyStats = events.reduce((acc, event) => {
+          const path = event.executionPath?.join(' -> ') || 'unknown';
+          acc[path] = (acc[path] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        Object.entries(hierarchyStats).forEach(([path, count]) => {
+          console.log(`   └─ ${path}: ${count} events`);
+        });
+      });
+
+      // Show timeline of key business events
+      console.log('\n⏱️  BUSINESS EVENT TIMELINE:');
+      const businessEvents = customEvents.filter(event => 
+        ['analysis_started', 'analysis_completed', 'enrichment_started', 'enrichment_completed', 'subgraph_entered', 'subgraph_exited']
+          .includes(event.metadata?.eventName || '')
+      ).sort((a, b) => a.timestamp - b.timestamp);
+
+      businessEvents.forEach((event, index) => {
+        const timeOffset = index === 0 ? '0ms' : `+${event.timestamp - businessEvents[0].timestamp}ms`;
+        const indent = '  '.repeat(event.graphLevel || 0);
+        console.log(`${indent}${timeOffset} - ${event.metadata?.eventName} (${event.executionPath?.join(' -> ') || 'unknown'})`);
+      });
+
+      // Performance insights from custom events
+      console.log('\n⚡ PERFORMANCE INSIGHTS FROM CUSTOM EVENTS:');
+      const performanceEvents = customEvents.filter(event => 
+        event.metadata?.performanceMetrics || event.metadata?.duration
+      );
+
+      if (performanceEvents.length > 0) {
+        performanceEvents.forEach(event => {
+          const metrics = event.metadata?.performanceMetrics;
+          const duration = event.metadata?.duration;
+          const node = event.metadata?.currentNode || event.nodeName;
+          
+          if (metrics) {
+            console.log(`   ${node}:`);
+            console.log(`     ├─ Total duration: ${metrics.totalDuration}ms`);
+            console.log(`     ├─ LLM duration: ${metrics.llmDuration}ms`);
+            console.log(`     ├─ Processing rate: ${metrics.processingRate.toFixed(2)} items/sec`);
+            console.log(`     └─ Avg time per item: ${metrics.averageTimePerItem.toFixed(2)}ms`);
+          } else if (duration) {
+            console.log(`   ${node}: ${duration}ms`);
+          }
+        });
+      }
+
+      // Error analysis from custom events
+      console.log('\n🚨 ERROR ANALYSIS FROM CUSTOM EVENTS:');
+      const errorEvents = customEvents.filter(event => 
+        event.metadata?.eventName === 'validation_failed' || event.metadata?.error
+      );
+
+      if (errorEvents.length > 0) {
+        errorEvents.forEach(event => {
+          console.log(`   ❌ ${event.metadata?.error || 'Unknown error'}`);
+          console.log(`      └─ Location: ${event.executionPath?.join(' -> ') || 'unknown'}`);
+        });
+      } else {
+        console.log('   ✅ No errors detected in custom events');
+      }
+
+    } else {
+      console.log('No custom events captured.');
+    }
 
     // Phase breakdown
     console.log('\n📊 PHASE BREAKDOWN:');

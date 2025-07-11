@@ -45,6 +45,88 @@ export interface ProcessingEvent {
 }
 
 /**
+ * Predefined custom event types for common business operations
+ * 
+ * These constants provide standardized event names that can be used across
+ * the nested graph architecture for consistent custom event tracking.
+ */
+export const CustomEventTypes = {
+  // Progress tracking events
+  PROGRESS_UPDATE: 'progress_update',
+  ITEMS_PROCESSED: 'items_processed',
+  BATCH_COMPLETED: 'batch_completed',
+  
+  // Business milestone events
+  VALIDATION_STARTED: 'validation_started',
+  VALIDATION_COMPLETED: 'validation_completed',
+  ANALYSIS_STARTED: 'analysis_started',
+  ANALYSIS_COMPLETED: 'analysis_completed',
+  ENRICHMENT_STARTED: 'enrichment_started',
+  ENRICHMENT_COMPLETED: 'enrichment_completed',
+  
+  // State transition events
+  PHASE_TRANSITION: 'phase_transition',
+  SUBGRAPH_ENTERED: 'subgraph_entered',
+  SUBGRAPH_EXITED: 'subgraph_exited',
+  
+  // Error and recovery events
+  VALIDATION_FAILED: 'validation_failed',
+  RETRY_ATTEMPTED: 'retry_attempted',
+  FALLBACK_TRIGGERED: 'fallback_triggered',
+  ERROR_RECOVERED: 'error_recovered',
+  
+  // Performance and monitoring events
+  CACHE_HIT: 'cache_hit',
+  CACHE_MISS: 'cache_miss',
+  API_TIMEOUT: 'api_timeout',
+  RATE_LIMIT_HIT: 'rate_limit_hit',
+  
+  // Data flow events
+  DATA_RECEIVED: 'data_received',
+  DATA_VALIDATED: 'data_validated',
+  DATA_TRANSFORMED: 'data_transformed',
+  DATA_EXPORTED: 'data_exported',
+} as const;
+
+/**
+ * Type for custom event names - either predefined constants or custom strings
+ */
+export type CustomEventName = typeof CustomEventTypes[keyof typeof CustomEventTypes] | string;
+
+/**
+ * Standard metadata interfaces for common custom event types
+ */
+export interface ProgressEventData {
+  current: number;
+  total: number;
+  percentage: number;
+  estimatedTimeRemaining?: number;
+  itemsPerSecond?: number;
+}
+
+export interface ValidationEventData {
+  itemCount: number;
+  validItems: number;
+  invalidItems: number;
+  validationRules: string[];
+  errors?: string[];
+}
+
+export interface PerformanceEventData {
+  duration?: number;
+  memoryUsage?: number;
+  apiCalls?: number;
+  cacheHitRate?: number;
+}
+
+export interface StateTransitionEventData {
+  fromPhase: ProcessingPhase | string;
+  toPhase: ProcessingPhase | string;
+  trigger: string;
+  stateData?: Record<string, any>;
+}
+
+/**
  * Simplified menu item for demonstration
  * 
  * This represents the core business object that flows through the processing pipeline.

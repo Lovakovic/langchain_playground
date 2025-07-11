@@ -2,8 +2,9 @@ import dotenv from 'dotenv';
 import { END, START, StateGraph } from '@langchain/langgraph';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatVertexAI } from '@langchain/google-vertexai';
+import { dispatchCustomEvent } from '@langchain/core/callbacks/dispatch';
 import { ExtractionState } from './states';
-import { MockFileMetadata, MockMenuItem } from './types';
+import { MockFileMetadata, MockMenuItem, CustomEventTypes, ProgressEventData } from './types';
 import { createStructureAnalysisTool, createItemExtractionTool } from './tools';
 
 dotenv.config();
@@ -47,9 +48,27 @@ function createVertexAIModel(config: { model: string; temperature: number }) {
  */
 async function fileProcessingNode(state: typeof ExtractionState.State): Promise<Partial<typeof ExtractionState.State>> {
   try {
+    // Dispatch custom event: Subgraph entry
+    await dispatchCustomEvent(CustomEventTypes.SUBGRAPH_ENTERED, {
+      subgraph: 'extraction',
+      node: 'file_processing_node',
+      inputFileCount: state.inputFiles?.length || 0
+    });
+
     if (!state.inputFiles || state.inputFiles.length === 0) {
+      await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+        error: 'No input files provided to extraction subgraph',
+        node: 'file_processing_node'
+      });
       return { errorLog: ['No input files provided to extraction subgraph'] };
     }
+
+    // Dispatch validation success
+    await dispatchCustomEvent(CustomEventTypes.DATA_VALIDATED, {
+      fileCount: state.inputFiles.length,
+      totalSize: state.inputFiles.reduce((sum, f) => sum + f.content.length, 0),
+      node: 'file_processing_node'
+    });
 
     // Simulate file processing by concatenating content
     const processedContent = state.inputFiles
@@ -58,11 +77,24 @@ async function fileProcessingNode(state: typeof ExtractionState.State): Promise<
 
     console.log(`📄 Processing ${state.inputFiles.length} files in extraction subgraph`);
     
+    // Dispatch progress event
+    await dispatchCustomEvent(CustomEventTypes.DATA_TRANSFORMED, {
+      operation: 'file_concatenation',
+      inputFiles: state.inputFiles.length,
+      outputLength: processedContent.length,
+      processingComplete: true
+    });
+    
     // Simulate processing delay
     await new Promise(resolve => setTimeout(resolve, 100));
 
     return { processedContent };
   } catch (e) {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      error: (e as Error).message,
+      node: 'file_processing_node',
+      stack: (e as Error).stack
+    });
     return { errorLog: [`File processing failed: ${(e as Error).message}`] };
   }
 }
@@ -80,10 +112,23 @@ async function fileProcessingNode(state: typeof ExtractionState.State): Promise<
  */
 async function structureAnalysisNode(state: typeof ExtractionState.State): Promise<Partial<typeof ExtractionState.State>> {
   if (!state.processedContent) {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      error: 'No processed content for structure analysis',
+      node: 'structure_analysis_node',
+      expectedInput: 'processedContent'
+    });
     return { errorLog: ['No processed content for structure analysis'], menuStructure: [] };
   }
 
   try {
+    // Dispatch custom event: Starting LLM analysis
+    await dispatchCustomEvent(CustomEventTypes.ANALYSIS_STARTED, {
+      node: 'structure_analysis_node',
+      analysisType: 'menu_structure',
+      inputContentLength: state.processedContent.length,
+      modelUsed: 'gemini-2.5-flash'
+    });
+
     const structureTool = createStructureAnalysisTool();
     const model = createVertexAIModel({ model: 'gemini-2.5-flash', temperature: 0.0 })
       .bindTools([structureTool], { tool_choice: 'any' });
@@ -94,16 +139,47 @@ async function structureAnalysisNode(state: typeof ExtractionState.State): Promi
     ];
 
     console.log('🔍 Analyzing menu structure with LLM...');
+    
+    // Custom event: LLM invocation started
+    await dispatchCustomEvent('llm_invocation_started', {
+      node: 'structure_analysis_node',
+      toolsBound: ['analyze_menu_structure'],
+      messageCount: messages.length
+    });
+
     const response = await model.invoke(messages);
     const toolCall = response.tool_calls?.[0];
 
     if (toolCall?.name === 'analyze_menu_structure' && toolCall.args.sections) {
+      // Dispatch success event
+      await dispatchCustomEvent(CustomEventTypes.ANALYSIS_COMPLETED, {
+        node: 'structure_analysis_node',
+        analysisType: 'menu_structure',
+        sectionsFound: toolCall.args.sections.length,
+        toolCallSuccessful: true,
+        sections: toolCall.args.sections.map((s: any) => ({ name: s.name, itemCount: s.itemCount }))
+      });
+
       console.log(`📋 Found ${toolCall.args.sections.length} menu sections`);
       return { menuStructure: toolCall.args.sections };
     }
 
+    // Tool call failed
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      error: 'Structure analysis tool call failed',
+      node: 'structure_analysis_node',
+      toolCallName: toolCall?.name || 'none',
+      toolCallArgs: toolCall?.args || null
+    });
+
     return { errorLog: ['Structure analysis tool call failed'], menuStructure: [] };
   } catch (e) {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      error: (e as Error).message,
+      node: 'structure_analysis_node',
+      analysisType: 'menu_structure',
+      stack: (e as Error).stack
+    });
     return { errorLog: [`Structure analysis failed: ${(e as Error).message}`], menuStructure: [] };
   }
 }
@@ -125,23 +201,54 @@ async function itemExtractionNode(state: typeof ExtractionState.State): Promise<
   const { menuStructure, processedContent } = state;
   
   if (!menuStructure || menuStructure.length === 0) {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      error: 'No menu structure for item extraction',
+      node: 'item_extraction_node',
+      expectedInput: 'menuStructure'
+    });
     return { extractedItems: [], errorLog: ['No menu structure for item extraction'] };
   }
 
   if (!processedContent) {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      error: 'No processed content for item extraction', 
+      node: 'item_extraction_node',
+      expectedInput: 'processedContent'
+    });
     return { extractedItems: [], errorLog: ['No processed content for item extraction'] };
   }
 
   try {
+    // Dispatch custom event: Starting parallel extraction
+    await dispatchCustomEvent(CustomEventTypes.ANALYSIS_STARTED, {
+      node: 'item_extraction_node',
+      analysisType: 'parallel_item_extraction',
+      sectionCount: menuStructure.length,
+      parallelProcessing: true,
+      sections: menuStructure.map(s => s.name)
+    });
+
     const itemTool = createItemExtractionTool();
     const model = createVertexAIModel({ model: 'gemini-2.5-flash', temperature: 0.3 })
       .bindTools([itemTool], { tool_choice: 'any' });
 
     console.log(`⚡ Processing ${menuStructure.length} sections in parallel...`);
 
+    // Track progress across parallel operations
+    let completedSections = 0;
+    const totalSections = menuStructure.length;
+
     // Simulate parallel processing of sections (like monkey-ai)
     const sectionPromises = menuStructure.map(async (section, index) => {
       try {
+        // Dispatch progress for this specific section
+        await dispatchCustomEvent(CustomEventTypes.ITEMS_PROCESSED, {
+          node: 'item_extraction_node',
+          sectionName: section.name,
+          sectionIndex: index,
+          operation: 'starting_section_extraction'
+        });
+
         // Simulate section-specific content extraction
         const sectionContent = `Section: ${section.name}\nContent: Sample menu items for ${section.name}`;
         
@@ -164,12 +271,39 @@ async function itemExtractionNode(state: typeof ExtractionState.State): Promise<
             section: section.name
           }));
 
+          // Update progress
+          completedSections++;
+          
+          // Dispatch completion event for this section
+          await dispatchCustomEvent(CustomEventTypes.ITEMS_PROCESSED, {
+            node: 'item_extraction_node',
+            sectionName: section.name,
+            sectionIndex: index,
+            itemsExtracted: mockItems.length,
+            operation: 'section_extraction_complete'
+          });
+
+          // Dispatch overall progress
+          await dispatchCustomEvent(CustomEventTypes.PROGRESS_UPDATE, {
+            current: completedSections,
+            total: totalSections,
+            percentage: (completedSections / totalSections) * 100,
+            operation: 'parallel_section_processing'
+          } as ProgressEventData);
+
           console.log(`    ✅ Extracted ${mockItems.length} items from ${section.name}`);
           return mockItems;
         }
 
         return [];
       } catch (e) {
+        await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+          error: (e as Error).message,
+          node: 'item_extraction_node',
+          sectionName: section.name,
+          sectionIndex: index,
+          operation: 'section_extraction_failed'
+        });
         console.log(`    ❌ Failed to extract from ${section.name}: ${(e as Error).message}`);
         return [];
       }
@@ -178,9 +312,25 @@ async function itemExtractionNode(state: typeof ExtractionState.State): Promise<
     const allResults = await Promise.all(sectionPromises);
     const extractedItems = allResults.flat();
 
+    // Dispatch final completion event
+    await dispatchCustomEvent(CustomEventTypes.ANALYSIS_COMPLETED, {
+      node: 'item_extraction_node',
+      analysisType: 'parallel_item_extraction',
+      totalItemsExtracted: extractedItems.length,
+      sectionsProcessed: menuStructure.length,
+      parallelProcessingComplete: true,
+      successfulSections: allResults.filter(result => result.length > 0).length
+    });
+
     console.log(`🎯 Total items extracted: ${extractedItems.length}`);
     return { extractedItems };
   } catch (e) {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      error: (e as Error).message,
+      node: 'item_extraction_node',
+      analysisType: 'parallel_item_extraction',
+      stack: (e as Error).stack
+    });
     return { extractedItems: [], errorLog: [`Item extraction failed: ${(e as Error).message}`] };
   }
 }
@@ -192,7 +342,29 @@ async function itemExtractionNode(state: typeof ExtractionState.State): Promise<
  * It doesn't use LLMs, but shows the data flow patterns that the tracer tracks.
  */
 async function formatOutputNode(state: typeof ExtractionState.State): Promise<Partial<typeof ExtractionState.State>> {
+  // Dispatch custom event: Subgraph exit
+  await dispatchCustomEvent(CustomEventTypes.SUBGRAPH_EXITED, {
+    subgraph: 'extraction',
+    node: 'format_output_node',
+    outputSummary: {
+      extractedItems: state.extractedItems?.length || 0,
+      menuStructure: state.menuStructure?.length || 0,
+      errors: state.errorLog?.length || 0
+    },
+    subgraphComplete: true
+  });
+
   console.log('📤 Formatting extraction subgraph output');
+  
+  // Dispatch data export event
+  await dispatchCustomEvent(CustomEventTypes.DATA_EXPORTED, {
+    node: 'format_output_node',
+    destination: 'master_graph',
+    dataTypes: ['extractedItems', 'menuStructure', 'errorLog'],
+    itemCount: state.extractedItems?.length || 0,
+    structureCount: state.menuStructure?.length || 0
+  });
+
   return {
     extractedItems: state.extractedItems || [],
     menuStructure: state.menuStructure || [],

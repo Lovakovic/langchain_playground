@@ -60,13 +60,24 @@ Tool calls are captured from `onLLMEnd` events and associated with:
 - **Subgraph Node**: The subgraph-level node (if applicable)
 - **Execution Path**: Complete path from master to current node
 
-### 3. Event Types
+### 3. Custom Events Tracking ⭐ NEW
+Custom events provide application-specific business context beyond standard LangChain events:
+- **Business Milestones**: `analysis_started`, `enrichment_completed`, `phase_transition`
+- **Progress Tracking**: `progress_update`, `items_processed`, `batch_completed`
+- **State Transitions**: `subgraph_entered`, `subgraph_exited`, `data_transformed`
+- **Error Conditions**: `validation_failed`, `retry_attempted`, `error_recovered`
+- **Performance Metrics**: Duration tracking, processing rates, performance insights
+
+Custom events are dispatched using `dispatchCustomEvent()` and automatically inherit the full execution hierarchy context.
+
+### 4. Event Types
 - `phase:start` / `phase:end` - Node execution lifecycle
 - `tool:end` - Tool call capture with full context
 - `llm:end` - LLM completion with token usage
 - `phase:error` - Error tracking with context
+- `custom:event` - Application-specific business events ⭐ NEW
 
-### 4. Processing Phases
+### 5. Processing Phases
 Events are mapped to processing phases:
 - `FILE_PROCESSING` - File handling and preparation
 - `EXTRACTION` - Content analysis and item extraction  
@@ -109,6 +120,7 @@ The tracer provides comprehensive analysis using LangChain's internal hierarchy:
 ### Execution Summary
 - Total events captured
 - Tool call count and associations
+- Custom events count and analysis ⭐ NEW
 - Token usage tracking
 - Phase breakdown
 
@@ -120,21 +132,143 @@ Each tool call shows:
 - Complete execution path
 - Model used and token consumption
 
+### Custom Events Analysis ⭐ NEW
+Comprehensive custom event insights:
+- **Event Distribution**: Counts by event type and hierarchy level
+- **Business Timeline**: Chronological view of key business milestones
+- **Performance Insights**: Duration tracking and processing rates from custom events
+- **Error Analysis**: Validation failures and error patterns
+- **Hierarchy Mapping**: Shows where each custom event occurred in the graph structure
+
 ### Phase Breakdown
 Event counts per processing phase with tool call attribution.
+
+## Using Custom Events in Your Graphs
+
+### Basic Custom Event Dispatch
+```typescript
+import { dispatchCustomEvent } from '@langchain/core/callbacks/dispatch';
+import { CustomEventTypes } from './types';
+
+async function yourGraphNode(state: StateType): Promise<Partial<StateType>> {
+  // Dispatch business milestone event
+  await dispatchCustomEvent(CustomEventTypes.ANALYSIS_STARTED, {
+    node: 'your_node_name',
+    analysisType: 'menu_structure',
+    itemCount: state.items.length
+  });
+  
+  // Your business logic here
+  
+  // Dispatch completion event
+  await dispatchCustomEvent(CustomEventTypes.ANALYSIS_COMPLETED, {
+    node: 'your_node_name',
+    itemsProcessed: state.items.length,
+    success: true
+  });
+  
+  return updatedState;
+}
+```
+
+### Progress Tracking Pattern
+```typescript
+// Track progress through parallel operations
+for (let i = 0; i < items.length; i++) {
+  await processItem(items[i]);
+  
+  await dispatchCustomEvent(CustomEventTypes.PROGRESS_UPDATE, {
+    current: i + 1,
+    total: items.length,
+    percentage: ((i + 1) / items.length) * 100,
+    operation: 'item_processing'
+  });
+}
+```
+
+### Performance Monitoring Pattern
+```typescript
+async function performanceTrackingNode(state: StateType): Promise<Partial<StateType>> {
+  const startTime = Date.now();
+  
+  await dispatchCustomEvent(CustomEventTypes.ANALYSIS_STARTED, {
+    node: 'performance_node',
+    startTime,
+    performanceTracking: true
+  });
+  
+  // Your processing logic
+  const result = await heavyOperation(state.data);
+  
+  const duration = Date.now() - startTime;
+  
+  await dispatchCustomEvent(CustomEventTypes.ANALYSIS_COMPLETED, {
+    node: 'performance_node',
+    performanceMetrics: {
+      totalDuration: duration,
+      processingRate: state.data.length / (duration / 1000),
+      itemsPerSecond: state.data.length / (duration / 1000)
+    }
+  });
+  
+  return { result };
+}
+```
+
+### Error Tracking Pattern
+```typescript
+async function errorTrackingNode(state: StateType): Promise<Partial<StateType>> {
+  try {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_STARTED, {
+      node: 'error_tracking_node',
+      itemCount: state.items.length
+    });
+    
+    const result = await riskyOperation(state.items);
+    
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_COMPLETED, {
+      node: 'error_tracking_node',
+      success: true,
+      itemsValidated: result.length
+    });
+    
+    return { validatedItems: result };
+  } catch (error) {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      node: 'error_tracking_node',
+      error: error.message,
+      stack: error.stack,
+      inputItemCount: state.items.length
+    });
+    
+    throw error;
+  }
+}
+```
 
 ## Key Learnings for monkey-ai Implementation
 
 This example demonstrates how to:
 
-1. **Track nested execution context** using run metadata and node stacks
+1. **Track nested execution context** using LangChain's run hierarchy
 2. **Associate tool calls** with both immediate and parent graph contexts
 3. **Handle parallel subgraph execution** while maintaining proper attribution
 4. **Filter system events** to focus on user-defined nodes
 5. **Build execution paths** for complete context understanding
 6. **Capture token usage** and associate it with graph components
+7. **Dispatch custom events** to track business-specific milestones ⭐ NEW
+8. **Monitor progress** through long-running operations ⭐ NEW
+9. **Track performance metrics** with custom event metadata ⭐ NEW
+10. **Implement error tracking** patterns for debugging ⭐ NEW
 
-The patterns shown here can be directly applied to enhance the monkey-ai TargetedTracer for better observability of the complex menu processing pipeline.
+The enhanced patterns now include comprehensive custom event tracking that provides:
+- **Business Context**: Understanding what business operations are happening
+- **Real-time Monitoring**: Progress tracking for long operations
+- **Performance Insights**: Detailed timing and processing rate metrics
+- **Error Attribution**: Precise error location and context tracking
+- **Operational Visibility**: Complete observability into nested graph execution
+
+These patterns can be directly applied to enhance the monkey-ai TargetedTracer for superior observability of the complex menu processing pipeline, providing both technical execution details and business operation insights.
 
 ## Files
 

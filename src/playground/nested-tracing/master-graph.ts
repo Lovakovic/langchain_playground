@@ -1,6 +1,7 @@
 import { END, START, StateGraph } from '@langchain/langgraph';
+import { dispatchCustomEvent } from '@langchain/core/callbacks/dispatch';
 import { MasterGraphState } from './states';
-import { MockMenuItem, MockFileMetadata } from './types';
+import { MockMenuItem, MockFileMetadata, CustomEventTypes, StateTransitionEventData } from './types';
 import { createExtractionSubgraph } from './extraction-subgraph';
 import { 
   createCategoryEnrichmentSubgraph, 
@@ -30,8 +31,30 @@ import {
  * In monkey-ai, this might include file validation, credential checks, etc.
  */
 async function initialSetupNode(state: typeof MasterGraphState.State): Promise<Partial<typeof MasterGraphState.State>> {
+  // Dispatch custom event: Pipeline starting
+  await dispatchCustomEvent(CustomEventTypes.ANALYSIS_STARTED, {
+    menuId: state.menuId,
+    inputFileCount: state.inputFiles?.length || 0,
+    timestamp: new Date().toISOString(),
+    pipeline: 'master_graph'
+  });
+
   console.log(`🚀 Starting menu processing for menuId: ${state.menuId}`);
   console.log(`📁 Input files: ${state.inputFiles?.length || 0}`);
+  
+  // Dispatch validation event
+  if (state.inputFiles && state.inputFiles.length > 0) {
+    await dispatchCustomEvent(CustomEventTypes.DATA_VALIDATED, {
+      validationResult: 'success',
+      fileCount: state.inputFiles.length,
+      totalContentLength: state.inputFiles.reduce((sum, f) => sum + f.content.length, 0)
+    });
+  } else {
+    await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
+      error: 'No input files provided',
+      fileCount: 0
+    });
+  }
   
   // Simulate initial validation and setup work
   await new Promise(resolve => setTimeout(resolve, 50));
@@ -48,6 +71,14 @@ async function initialSetupNode(state: typeof MasterGraphState.State): Promise<P
  */
 async function deduplicationNode(state: typeof MasterGraphState.State): Promise<Partial<typeof MasterGraphState.State>> {
   const items = state.extractedItems || [];
+  
+  // Dispatch custom event: Starting deduplication
+  await dispatchCustomEvent(CustomEventTypes.DATA_RECEIVED, {
+    source: 'extraction_subgraph',
+    itemCount: items.length,
+    operation: 'deduplication'
+  });
+
   console.log(`🔍 Deduplicating ${items.length} extracted items...`);
   
   // Simple deduplication by name (for demo purposes)
@@ -55,8 +86,19 @@ async function deduplicationNode(state: typeof MasterGraphState.State): Promise<
     arr.findIndex(i => i.name === item.name) === index
   );
   
+  const duplicatesRemoved = items.length - uniqueItems.length;
+  
+  // Dispatch custom event: Deduplication results
+  await dispatchCustomEvent(CustomEventTypes.DATA_TRANSFORMED, {
+    operation: 'deduplication',
+    inputCount: items.length,
+    outputCount: uniqueItems.length,
+    duplicatesRemoved,
+    deduplicationRate: duplicatesRemoved / items.length
+  });
+  
   if (uniqueItems.length < items.length) {
-    console.log(`  📝 Removed ${items.length - uniqueItems.length} duplicate items`);
+    console.log(`  📝 Removed ${duplicatesRemoved} duplicate items`);
   }
   
   return { extractedItems: uniqueItems };
@@ -70,10 +112,26 @@ async function deduplicationNode(state: typeof MasterGraphState.State): Promise<
  * how this node relates to the parallel enrichment subgraphs.
  */
 async function mergePhase1EnrichmentsNode(state: typeof MasterGraphState.State): Promise<Partial<typeof MasterGraphState.State>> {
+  // Dispatch custom event: Starting phase 1 merge
+  await dispatchCustomEvent(CustomEventTypes.PHASE_TRANSITION, {
+    fromPhase: 'enrichment_1',
+    toPhase: 'phase_1_merge',
+    trigger: 'enrichment_completion',
+    operation: 'fan_in_merge'
+  } as StateTransitionEventData);
+
   console.log('🔗 Merging Phase 1 enrichment results...');
   
   const categoryCount = state.categorizedItems?.length || 0;
   console.log(`  📊 Category enrichments: ${categoryCount}`);
+  
+  // Dispatch custom event: Merge completion
+  await dispatchCustomEvent(CustomEventTypes.BATCH_COMPLETED, {
+    phase: 'phase_1_enrichment',
+    categoryEnrichments: categoryCount,
+    mergeComplete: true,
+    nextPhase: 'phase_2_preparation'
+  });
   
   // Simulate merging enrichment data - in real implementation this would
   // combine results from multiple parallel enrichment processes
@@ -105,12 +163,29 @@ async function preparePhase2EnrichmentNode(state: typeof MasterGraphState.State)
  * works in nested graph architectures.
  */
 async function finalAssemblyNode(state: typeof MasterGraphState.State): Promise<Partial<typeof MasterGraphState.State>> {
+  // Dispatch custom event: Starting final assembly
+  await dispatchCustomEvent(CustomEventTypes.PHASE_TRANSITION, {
+    fromPhase: 'enrichment_2',
+    toPhase: 'assembly',
+    trigger: 'parallel_enrichment_completion',
+    operation: 'final_assembly'
+  } as StateTransitionEventData);
+
   console.log('🏗️  Assembling final menu structure...');
   
   const items = state.extractedItems || [];
   const categories = state.categorizedItems || [];
   const allergens = state.allergenInfo || [];
   const translations = state.translatedItems || [];
+  
+  // Dispatch progress event
+  await dispatchCustomEvent(CustomEventTypes.DATA_RECEIVED, {
+    source: 'multiple_enrichment_subgraphs',
+    extractedItems: items.length,
+    categoryEnrichments: categories.length,
+    allergenEnrichments: allergens.length,
+    translationEnrichments: translations.length
+  });
   
   // Create final menu structure by combining all enrichment results
   const finalMenuStructure = {
@@ -132,6 +207,19 @@ async function finalAssemblyNode(state: typeof MasterGraphState.State): Promise<
     (translations.length / Math.max(items.length, 1)) * 0.3,
     1.0
   );
+  
+  // Dispatch custom event: Assembly complete
+  await dispatchCustomEvent(CustomEventTypes.ANALYSIS_COMPLETED, {
+    menuId: state.menuId,
+    totalItems: items.length,
+    completenessScore: Math.round(completenessScore * 100),
+    enrichmentCoverage: {
+      categories: (categories.length / Math.max(items.length, 1)) * 100,
+      allergens: (allergens.length / Math.max(items.length, 1)) * 100,
+      translations: (translations.length / Math.max(items.length, 1)) * 100
+    },
+    processingComplete: true
+  });
   
   console.log(`  📈 Completeness score: ${Math.round(completenessScore * 100)}%`);
   console.log(`  🎯 Final structure: ${items.length} items across ${(state.menuStructure || []).length} sections`);

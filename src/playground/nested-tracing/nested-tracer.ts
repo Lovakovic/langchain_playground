@@ -234,6 +234,69 @@ export class NestedTracer extends BaseTracer {
            nodeName in nodeToPhaseMap; // Must be in our known graph nodes
   }
 
+  // =================== CUSTOM EVENT HANDLING ===================
+  
+  /**
+   * Handle custom events dispatched via dispatchCustomEvent()
+   * 
+   * This is the key method for capturing application-specific events that provide
+   * business context beyond the standard LangChain events. Custom events are
+   * dispatched from within graph nodes using dispatchCustomEvent() and this
+   * method captures them with full hierarchy context.
+   * 
+   * Examples of custom events:
+   * - Progress tracking: "items_processed", "validation_complete"
+   * - Business milestones: "analysis_started", "enrichment_complete"
+   * - Error conditions: "validation_failed", "retry_attempted"
+   * - Performance metrics: "cache_hit", "api_timeout"
+   */
+  async handleCustomEvent(
+    eventName: string,
+    data: any,
+    runId: string,
+    tags?: string[],
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    // Get the run that dispatched this custom event
+    const run = this.runMap.get(runId);
+    if (!run) {
+      console.warn(`Custom event ${eventName} received for unknown run ID: ${runId}`);
+      return;
+    }
+
+    // Determine the processing phase based on the run context
+    const phase = this.getCurrentPhase(run);
+    
+    // Create enriched custom event with complete execution context
+    this.emit({
+      phase,
+      message: `Custom event: ${eventName}`,
+      metadata: {
+        // === CUSTOM EVENT DETAILS ===
+        eventName,
+        eventData: data,
+        
+        // === EXECUTION CONTEXT ===
+        // This is the key value - we know exactly where each custom event occurred
+        currentNode: this.getCurrentNodeName(run),
+        parentNode: this.getParentNodeName(run),
+        masterGraphNode: this.getMasterGraphNode(run),
+        subgraphNode: this.getSubgraphNode(run),
+        executionPath: this.getExecutionPath(run),
+        level: this.getGraphLevel(run),
+        
+        // === ADDITIONAL CONTEXT ===
+        ...(tags && tags.length > 0 && { tags }),
+        ...(metadata && Object.keys(metadata).length > 0 && { customMetadata: metadata }),
+        
+        // === TECHNICAL DETAILS ===
+        dispatchedFromRunId: runId,
+        isCustomEvent: true,
+        timestamp: Date.now(),
+      },
+    }, 'custom:event', run);
+  }
+
   // =================== EVENT TRACKING METHODS ===================
   
   /**
@@ -481,6 +544,32 @@ export class NestedTracer extends BaseTracer {
   }
 
   /**
+   * Get only custom events for analysis
+   */
+  public getCustomEvents(): CapturedEvent[] {
+    return this.capturedEvents.filter(event => event.type === 'custom:event');
+  }
+
+  /**
+   * Get custom events by event name
+   */
+  public getCustomEventsByName(eventName: string): CapturedEvent[] {
+    return this.getCustomEvents().filter(event => 
+      event.metadata?.eventName === eventName
+    );
+  }
+
+  /**
+   * Get custom events by execution path (useful for filtering by graph context)
+   */
+  public getCustomEventsByPath(pathFilter: string[]): CapturedEvent[] {
+    return this.getCustomEvents().filter(event => {
+      const eventPath = event.executionPath || [];
+      return pathFilter.every((segment, index) => eventPath[index] === segment);
+    });
+  }
+
+  /**
    * Get accumulated token usage statistics
    */
   public getTokenUsage(): { input: number; output: number; total: number } {
@@ -495,7 +584,7 @@ export class NestedTracer extends BaseTracer {
    * Generate a comprehensive execution summary
    * 
    * This provides a high-level view of what happened during execution,
-   * with emphasis on tool call associations - the key value of this tracer.
+   * with emphasis on tool call associations and custom events - the key value of this tracer.
    */
   public getExecutionSummary(): string {
     const events = this.capturedEvents;
@@ -506,16 +595,44 @@ export class NestedTracer extends BaseTracer {
     }));
 
     const toolCalls = this.getToolCallEvents();
+    const customEvents = this.getCustomEvents();
     const tokenUsage = this.getTokenUsage();
 
+    // Analyze custom events by name
+    const customEventsByName = customEvents.reduce((acc, event) => {
+      const eventName = event.metadata?.eventName || 'unknown';
+      acc[eventName] = (acc[eventName] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Analyze custom events by graph level
+    const customEventsByLevel = customEvents.reduce((acc, event) => {
+      const level = event.graphLevel || 0;
+      acc[level] = (acc[level] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+
     return `
-=== Execution Summary ===
+=== Enhanced Execution Summary ===
 Total Events: ${events.length}
-Tool Calls: ${toolCalls.length}
+- Tool Calls: ${toolCalls.length}
+- Custom Events: ${customEvents.length}
+- Phase Events: ${events.length - toolCalls.length - customEvents.length}
+
 Token Usage: ${tokenUsage.input} input, ${tokenUsage.output} output, ${tokenUsage.total} total
 
 Phase Breakdown:
 ${phaseStats.map(stat => `  ${stat.phase}: ${stat.count} events`).join('\n')}
+
+Custom Events Summary:
+${Object.entries(customEventsByName).map(([name, count]) => 
+  `  ${name}: ${count} events`
+).join('\n')}
+
+Custom Events by Graph Level:
+${Object.entries(customEventsByLevel).map(([level, count]) => 
+  `  Level ${level}: ${count} events`
+).join('\n')}
 
 Tool Call Associations:
 ${toolCalls.map(tc => 
