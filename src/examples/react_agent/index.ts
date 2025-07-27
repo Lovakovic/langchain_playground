@@ -195,7 +195,7 @@ export type ReActAgentGraph = CompiledStateGraph<
 export async function createReActAgent(checkpointer?: BaseCheckpointSaver): Promise<ReActAgentGraph> {
   const workflow = new StateGraph(MessagesAnnotation)
     .addNode("agent", callModel)
-    .addNode("tools", new ToolNode([fetchCatPictureTool]))
+    .addNode("tools", new ToolNode([fetchCatPictureTool], { handleToolErrors: true }))
     .addEdge("__start__", "agent")
     .addConditionalEdges("agent", shouldContinue, {
       tools: "tools",
