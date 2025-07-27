@@ -1,17 +1,24 @@
 {
   "name": "langchain_playground",
+  "type": "module",
   "packageManager": "yarn@4.9.2",
   "scripts": {
     "build": "tsc",
     "serve": "node dist/index.js",
     "start": "tsc && node dist/index.js",
-    "dev": "tsc -w & nodemon dist/index.js"
+    "dev": "tsc -w & nodemon dist/index.js",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix"
   },
   "devDependencies": {
+    "@eslint/js": "^9.32.0",
     "@types/node": "*",
     "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8",
     "@types/pngjs": "^6.0.5",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^9.32.0",
     "typescript": "*"
   },
   "dependencies": {

@@ -9,11 +9,11 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { HumanMessage } from "@langchain/core/messages";
 import { MessagesAnnotation, StateGraph, Annotation } from "@langchain/langgraph";
-import { MemorySaver } from "@langchain/langgraph-checkpoint";
+import { BaseCheckpointSaver, MemorySaver } from "@langchain/langgraph-checkpoint";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import { RunnableConfig } from "@langchain/core/runnables";
-import dotenv from "dotenv";
+import * as dotenv from "dotenv";
 import * as readline from "readline";
 
 dotenv.config();
@@ -146,7 +146,7 @@ const updateConfigSchema = z.object({
 });
 
 // Track what's been fixed
-let configState = {
+const configState = {
   securityFixed: false,
   performanceFixed: false,
   complianceFixed: false
@@ -177,7 +177,7 @@ const updateConfigTool = tool(
       errorManager.removeError("comp-002");
     }
 
-    const updatedConfig = `# Updated Web Server Configuration
+    const _updatedConfig = `# Updated Web Server Configuration
 server:
   port: 8443
   host: 127.0.0.1
@@ -463,7 +463,7 @@ async function validateAndFix(
 }
 
 // Create graph
-async function createCorrectionLoopAgent(checkpointer: any) {
+async function createCorrectionLoopAgent(checkpointer: BaseCheckpointSaver) {
   const workflow = new StateGraph(ConfigState)
     .addNode("agent", callModel)
     .addNode("tools", new ToolNode([createConfigTool, updateConfigTool, securityValidateTool, performanceValidateTool, complianceValidateTool, finalSummaryTool]))
