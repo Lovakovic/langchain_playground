@@ -6,7 +6,6 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-
 // --- REMOVED ALL CUSTOM INTERFACES ---
 
 // We now use the official types directly from the library's protos.
@@ -17,24 +16,46 @@ type IDocumentLayout = protos.google.cloud.documentai.v1.Document.IDocumentLayou
 type IDocumentLayoutBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.IDocumentLayoutBlock;
 type ILayoutTextBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTextBlock;
 type ILayoutTableBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTableBlock;
+type ILayout = protos.google.cloud.documentai.v1.Document.Page.ILayout;
 
 /**
- * A robust helper function to extract text from any layout element.
- * It uses the text_anchor and text_segments from the response to reconstruct the
- * text content of a given layout. This is the recommended approach.
- * @param layout The layout object from a Document AI response element.
- * @param fullText The full text of the document from the response.
- * @returns The text content of the layout element.
+ * Extract text from a document layout block.
+ * This function handles the recursive extraction of text from nested blocks.
+ * @param block The layout block from Document AI response.
+ * @returns The text content of the block.
  */
-function getTextFromLayout(layout: protos.google.cloud.documentai.v1.Document.Page.ILayout | null | undefined, fullText: string): string {
-  if (!layout?.textAnchor?.textSegments) {
-    return '';
+function getTextFromBlock(block: IDocumentLayoutBlock): string {
+  if (isTextBlock(block)) {
+    let text = block.textBlock.text || '';
+    
+    // Recursively get text from nested blocks if they exist
+    if (block.textBlock.blocks && block.textBlock.blocks.length > 0) {
+      const nestedText = block.textBlock.blocks
+        .map(nestedBlock => getTextFromBlock(nestedBlock))
+        .filter(text => text.trim().length > 0)
+        .join(' ');
+      
+      // If we have both direct text and nested text, combine them
+      if (text.trim() && nestedText.trim()) {
+        text = `${text} ${nestedText}`;
+      } else if (nestedText.trim()) {
+        text = nestedText;
+      }
+    }
+    
+    return text;
   }
-  return layout.textAnchor.textSegments.map(segment => {
-    const startIndex = Number(segment.startIndex) || 0;
-    const endIndex = Number(segment.endIndex);
-    return fullText.substring(startIndex, endIndex);
-  }).join('');
+  
+  if (isTableBlock(block) && block.tableBlock.bodyRows) {
+    // Extract text from table cells
+    return block.tableBlock.bodyRows
+      .map(row => row.cells?.map(cell => 
+        cell.blocks?.map(cellBlock => getTextFromBlock(cellBlock)).join(' ') || ''
+      ).join(' | ') || '')
+      .join('\n');
+  }
+  
+  return '';
 }
 
 // Simplified type guard functions using the official types
@@ -47,8 +68,9 @@ function isTableBlock(block: IDocumentLayoutBlock): block is IDocumentLayoutBloc
 }
 
 
+// @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentDir = path.dirname(__filename);
 
 // Load environment variables
 config();
@@ -107,7 +129,7 @@ class DocumentAIProcessor {
 
       console.log('\n🔍 Response structure captured');
 
-      const responseFilePath = path.join(__dirname, 'document-ai-response.json');
+      const responseFilePath = path.join(currentDir, 'document-ai-response.json');
       fs.writeFileSync(responseFilePath, JSON.stringify(result, null, 2));
       console.log(`💾 Full response saved to: ${responseFilePath}`);
 
@@ -122,10 +144,9 @@ class DocumentAIProcessor {
       console.log(`✅ Processing completed in ${processingTime}ms`);
       console.log(`📄 Document has ${document.pages?.length} pages and ${document.documentLayout.blocks.length} layout blocks`);
 
-      // Using the document's full text for context in our helper function
-      const fullText = document.text || '';
+      // Extract text from all layout blocks
       const allText = document.documentLayout.blocks
-        .map(block => getTextFromLayout(block, fullText)) // We no longer need a complex recursive function
+        .map(block => getTextFromBlock(block))
         .filter(text => text.trim().length > 0)
         .join('\n\n');
 
@@ -145,7 +166,7 @@ class DocumentAIProcessor {
           console.log(`🏷️  Type: Text Block`);
           console.log(`📄 Subtype: ${block.textBlock.type}`);
           console.log(`🧱 Nested blocks: ${block.textBlock.blocks?.length || 0}`);
-          console.log(`📝 Text: "${getTextFromLayout(block, fullText).substring(0, 100).replace(/\n/g, ' ')}..."`);
+          console.log(`📝 Text: "${getTextFromBlock(block).substring(0, 100).replace(/\n/g, ' ')}..."`);
         }
 
         if (isTableBlock(block)) {
@@ -179,7 +200,7 @@ async function main() {
     console.log('=' .repeat(50));
 
     const processor = new DocumentAIProcessor();
-    const pdfPath = path.join(__dirname, '..', 'flame-1-4.pdf');
+    const pdfPath = path.join(currentDir, '..', 'flame-1-4.pdf');
 
     await processor.processPdf(pdfPath);
 
