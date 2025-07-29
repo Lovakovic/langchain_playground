@@ -136,7 +136,7 @@ class DocumentAIProcessor {
       // The `document` object is now correctly and strongly typed as IDocument
       const { document } = result;
 
-      if (!document || !document.documentLayout || !document.documentLayout.blocks) {
+      if (!document?.documentLayout?.blocks) {
         throw new Error('Document AI returned an empty or invalid document object.');
       }
 
@@ -200,7 +200,7 @@ async function main() {
     console.log('=' .repeat(50));
 
     const processor = new DocumentAIProcessor();
-    const pdfPath = path.join(currentDir, '..', 'flame-1-4.pdf');
+    const pdfPath = path.join(currentDir, '..', 'menu.pdf');
 
     await processor.processPdf(pdfPath);
 
