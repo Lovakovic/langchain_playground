@@ -11,12 +11,9 @@ import { fileURLToPath } from 'url';
 // We now use the official types directly from the library's protos.
 // Creating type aliases makes the code more readable.
 type IProcessRequest = protos.google.cloud.documentai.v1.IProcessRequest;
-type IDocument = protos.google.cloud.documentai.v1.IDocument;
-type IDocumentLayout = protos.google.cloud.documentai.v1.Document.IDocumentLayout;
 type IDocumentLayoutBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.IDocumentLayoutBlock;
 type ILayoutTextBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTextBlock;
 type ILayoutTableBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTableBlock;
-type ILayout = protos.google.cloud.documentai.v1.Document.Page.ILayout;
 
 /**
  * Extract text from a document layout block.
