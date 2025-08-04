@@ -232,6 +232,8 @@ function analyzeDocumentStructure(layout: IDocumentLayout, processingTime?: numb
     };
   }
 
+  console.log(`🔍 DEBUG: Total layout blocks received: ${layout.blocks.length}`);
+
   // Group related blocks
   const blockGroups = groupRelatedBlocks(layout.blocks);
   
@@ -241,8 +243,36 @@ function analyzeDocumentStructure(layout: IDocumentLayout, processingTime?: numb
   // Detect document title (first heading or prominent text)
   const title = sections.find(s => s.type === 'heading' || s.type === 'section')?.content;
   
-  // Calculate metadata
-  const pages = Math.max(...layout.blocks.map(b => b.pageSpan?.pageEnd || 1));
+  // Calculate metadata - recursively find all page spans
+  const getAllPageEnds = (blocks: IDocumentLayoutBlock[]): number[] => {
+    const pageEnds: number[] = [];
+    
+    const traverse = (block: IDocumentLayoutBlock) => {
+      if (block.pageSpan?.pageEnd) {
+        pageEnds.push(block.pageSpan.pageEnd);
+      }
+      
+      // Recursively check nested blocks
+      if (block.textBlock?.blocks) {
+        block.textBlock.blocks.forEach(traverse);
+      }
+      if (block.tableBlock?.bodyRows) {
+        block.tableBlock.bodyRows.forEach(row => {
+          row.cells?.forEach(cell => {
+            cell.blocks?.forEach(traverse);
+          });
+        });
+      }
+    };
+    
+    blocks.forEach(traverse);
+    return pageEnds;
+  };
+  
+  const allPageEnds = getAllPageEnds(layout.blocks);
+  const pages = allPageEnds.length > 0 ? Math.max(...allPageEnds) : 1;
+  console.log(`🔍 DEBUG: All page ends found (first 10): ${JSON.stringify(allPageEnds.slice(0, 10))}`);
+  console.log(`🔍 DEBUG: Total page spans found: ${allPageEnds.length}, Maximum page: ${pages}`);
   
   return {
     title: title?.substring(0, 100), // Limit title length
@@ -502,7 +532,10 @@ async function main() {
     console.log('=' .repeat(50));
 
     const processor = new DocumentAIProcessor();
-    const pdfPath = path.join(currentDir, '..', 'menu.pdf');
+    
+    // Get PDF path from command line argument or use default
+    const pdfFileName = process.argv[2] || 'menu.pdf';
+    const pdfPath = path.join(currentDir, '..', pdfFileName);
 
     await processor.processPdf(pdfPath);
 
