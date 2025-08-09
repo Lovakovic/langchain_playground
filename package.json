@@ -1,6 +1,5 @@
 {
   "name": "langchain_playground",
-  "type": "module",
   "packageManager": "yarn@4.9.2",
   "scripts": {
     "build": "tsc",
