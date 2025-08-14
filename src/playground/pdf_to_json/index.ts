@@ -1,3 +1,14 @@
+// Node.js polyfills for pdfjs-dist
+global.DOMMatrix = class DOMMatrix {
+  constructor(init?: any) {
+    // Basic implementation for pdfjs compatibility
+  }
+} as any;
+
+if (typeof globalThis === 'undefined') {
+  (global as any).globalThis = global;
+}
+
 import * as pdfjsLib from 'pdfjs-dist';
 import pdf from 'pdf-parse';
 import sharp from 'sharp';
@@ -271,8 +282,15 @@ async function pdfToJson(pdfPath: string): Promise<void> {
     const jsonOutputPath = path.join(outputDir, `${pdfName}.json`);
     fs.writeFileSync(jsonOutputPath, JSON.stringify(result, null, 2));
 
+    const textOutputPath = path.join(outputDir, `${pdfName}.txt`);
+    const textContent = pages.map(page => 
+      `--- Page ${page.pageNumber} ---\n${page.text}`
+    ).join('\n\n');
+    fs.writeFileSync(textOutputPath, textContent);
+
     console.log(`Extraction complete!`);
     console.log(`JSON output: ${jsonOutputPath}`);
+    console.log(`Text output: ${textOutputPath}`);
     console.log(`Images directory: ${imagesDir}`);
     console.log(`Total pages processed: ${totalPages}`);
     const totalImages = Object.values(imagesByPage).reduce((sum, imgs) => sum + imgs.length, 0);
