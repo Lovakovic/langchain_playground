@@ -22,36 +22,44 @@ type ILayoutTableBlock = protos.google.cloud.documentai.v1.Document.DocumentLayo
  * @returns The text content of the block.
  */
 function getTextFromBlock(block: IDocumentLayoutBlock): string {
-  if (isTextBlock(block)) {
+  if (block.textBlock) {
     let text = block.textBlock.text || '';
-    
-    // Recursively get text from nested blocks if they exist
-    if (block.textBlock.blocks && block.textBlock.blocks.length > 0) {
-      const nestedText = block.textBlock.blocks
-        .map(nestedBlock => getTextFromBlock(nestedBlock))
-        .filter(text => text.trim().length > 0)
-        .join(' ');
-      
-      // If we have both direct text and nested text, combine them
-      if (text.trim() && nestedText.trim()) {
-        text = `${text} ${nestedText}`;
-      } else if (nestedText.trim()) {
-        text = nestedText;
+    if (block.textBlock.blocks?.length) {
+      const childTexts = block.textBlock.blocks
+        .map((b) => getTextFromBlock(b))
+        .filter(t => t.trim().length > 0);
+      if (childTexts.length > 0) {
+        text = text ? `${text}\n${childTexts.join('\n')}` : childTexts.join('\n');
       }
     }
-    
     return text;
   }
-  
-  if (isTableBlock(block) && block.tableBlock.bodyRows) {
-    // Extract text from table cells
+
+  if (block.tableBlock?.bodyRows?.length) {
     return block.tableBlock.bodyRows
-      .map(row => row.cells?.map(cell => 
-        cell.blocks?.map(cellBlock => getTextFromBlock(cellBlock)).join(' ') || ''
-      ).join(' | ') || '')
+      .map(
+        (row) => (row.cells || [])
+          .map((cell) => (cell.blocks || [])
+            .map((b) => getTextFromBlock(b))
+            .filter(t => t.trim().length > 0)
+            .join(' '),
+          )
+          .join(' | '),
+      )
       .join('\n');
   }
-  
+
+  if (block.listBlock?.listEntries?.length) {
+    return block.listBlock.listEntries
+      .map((entry) => (entry.blocks || [])
+        .map((b) => getTextFromBlock(b))
+        .filter(t => t.trim().length > 0)
+        .join(' '),
+      )
+      .filter(t => t.trim().length > 0)
+      .join('\n');
+  }
+
   return '';
 }
 
@@ -63,6 +71,7 @@ function isTextBlock(block: IDocumentLayoutBlock): block is IDocumentLayoutBlock
 function isTableBlock(block: IDocumentLayoutBlock): block is IDocumentLayoutBlock & { tableBlock: ILayoutTableBlock } {
   return !!block.tableBlock;
 }
+
 
 // Universal content types for any document
 interface ContentBlock {
@@ -156,7 +165,7 @@ function groupRelatedBlocks(blocks: IDocumentLayoutBlock[]): ContentBlock[][] {
     
     const { type, level } = inferContentType(
       text, 
-      block.block || 'textBlock',
+      isTableBlock(block) ? 'tableBlock' : 'textBlock',
       { prevBlock: prevText, nextBlock: nextText }
     );
 
@@ -166,8 +175,11 @@ function groupRelatedBlocks(blocks: IDocumentLayoutBlock[]): ContentBlock[][] {
       level,
       content: text,
       metadata: {
-        pageSpan: block.pageSpan || undefined,
-        style: isTextBlock(block) ? block.textBlock?.type : undefined,
+        pageSpan: block.pageSpan ? {
+          pageStart: block.pageSpan.pageStart ?? 0,
+          pageEnd: block.pageSpan.pageEnd ?? 0
+        } : undefined,
+        style: isTextBlock(block) ? (block.textBlock?.type ?? undefined) : undefined,
       },
       children: []
     };
@@ -261,6 +273,11 @@ function analyzeDocumentStructure(layout: IDocumentLayout, processingTime?: numb
           row.cells?.forEach(cell => {
             cell.blocks?.forEach(traverse);
           });
+        });
+      }
+      if (block.listBlock?.listEntries) {
+        block.listBlock.listEntries.forEach(entry => {
+          entry.blocks?.forEach(traverse);
         });
       }
     };
@@ -535,7 +552,10 @@ async function main() {
     
     // Get PDF path from command line argument or use default
     const pdfFileName = process.argv[2] || 'menu.pdf';
-    const pdfPath = path.join(currentDir, '..', pdfFileName);
+    // If the path is absolute, use it directly, otherwise join with parent directory
+    const pdfPath = path.isAbsolute(pdfFileName) 
+      ? pdfFileName 
+      : path.join(currentDir, '..', pdfFileName);
 
     await processor.processPdf(pdfPath);
 
