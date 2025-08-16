@@ -71,6 +71,68 @@ function getTextFromAnchor(fullText: string, textAnchor: any): string {
   return fullText.substring(start, end);
 }
 
+// Types for layout-aware text reconstruction
+interface TextElement {
+  text: string;
+  boundingBox: protos.google.cloud.documentai.v1.IBoundingPoly;
+}
+
+/**
+ * Reconstructs text from a page, respecting the reading order based on bounding boxes.
+ * @param page The Document AI page object.
+ * @param fullText The full text of the document.
+ * @returns A string with the reconstructed text for the page.
+ */
+function reconstructTextWithLayout(page: protos.google.cloud.documentai.v1.Document.IPage, fullText: string): string {
+  if (!page.lines) return '';
+
+  const lines: TextElement[] = page.lines.map(line => ({
+    text: getTextFromAnchor(fullText, line.layout?.textAnchor),
+    boundingBox: line.layout?.boundingPoly!,
+  }));
+
+  // Sort lines by reading order (top-to-bottom, then left-to-right)
+  lines.sort((a, b) => {
+    const yA = a.boundingBox?.normalizedVertices?.[0]?.y ?? 0;
+    const yB = b.boundingBox?.normalizedVertices?.[0]?.y ?? 0;
+    const xA = a.boundingBox?.normalizedVertices?.[0]?.x ?? 0;
+    const xB = b.boundingBox?.normalizedVertices?.[0]?.x ?? 0;
+
+    // A small tolerance for vertical alignment to group lines that are close
+    const yTolerance = 0.01;
+
+    if (Math.abs(yA - yB) > yTolerance) {
+      return yA - yB;
+    }
+    return xA - xB;
+  });
+
+  // Join lines into a single text block
+  return lines.map(line => line.text).join('\n');
+}
+
+/**
+ * Saves the reconstructed text to a file.
+ * @param document The Document AI document object.
+ */
+function saveReconstructedText(document: protos.google.cloud.documentai.v1.IDocument) {
+  if (!document.pages) return;
+
+  let fullReconstructedText = '';
+  const fullText = document.text || '';
+
+  for (const page of document.pages) {
+    fullReconstructedText += `--- Page ${page.pageNumber} ---\n`;
+    fullReconstructedText += reconstructTextWithLayout(page, fullText);
+    fullReconstructedText += '\n\n';
+  }
+
+  const outputFilePath = path.join(currentDir, 'document-ocr-reconstructed.txt');
+  fs.writeFileSync(outputFilePath, fullReconstructedText);
+  console.log(`\n📄 Reconstructed text saved to: ${outputFilePath}`);
+}
+
+
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(__filename);
@@ -266,6 +328,9 @@ class DocumentAIOCRProcessor {
       }, 0) || 0;
       
       console.log(`   - Total elements with bounding boxes: ${totalElements}`);
+
+      // Save the reconstructed text
+      saveReconstructedText(document);
 
       // Generate annotated PDF with bounding boxes
       await this.createAnnotatedPDF(filePath, document);

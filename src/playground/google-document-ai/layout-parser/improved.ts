@@ -93,7 +93,7 @@ interface ProcessedPage {
   sections: ContentBlock[];
 }
 
-interface DocumentTextResult {
+export interface DocumentTextResult {
   pages: ProcessedPage[];
   totalPages: number;
   processingTime?: number;
@@ -234,43 +234,6 @@ function buildHierarchicalStructure(blockGroups: ContentBlock[][]): ContentBlock
 
   return sections;
 }
-
-/**
- * Format content blocks with proper spacing and structure (original formatting)
- */
-function formatContentBlocks(sections: ContentBlock[]): string {
-  const formatBlock = (block: ContentBlock): string => {
-    switch (block.type) {
-      case 'heading':
-        // Headings in ALL CAPS with extra spacing
-        return `${block.content.toUpperCase()}\n${'='.repeat(Math.min(block.content.length, 50))}\n\n`;
-        
-      case 'section':
-        // Section with heading and children
-        let text = `${block.content.toUpperCase()}\n${'='.repeat(Math.min(block.content.length, 50))}\n\n`;
-        if (block.children) {
-          text += block.children.map(formatBlock).join('');
-        }
-        return text;
-        
-      case 'list-item':
-        // List items with proper bullets
-        return `• ${block.content}\n`;
-        
-      case 'table':
-        // Tables with separators
-        return `${block.content}\n${'─'.repeat(40)}\n\n`;
-        
-      case 'paragraph':
-      default:
-        // Regular paragraphs with spacing
-        return `${block.content}\n\n`;
-    }
-  };
-
-  return sections.map(formatBlock).join('');
-}
-
 /**
  * Format content blocks exactly like index.ts does - superior text layout
  */
@@ -346,7 +309,7 @@ function getAllPageEnds(blocks: IDocumentLayoutBlock[]): number[] {
 /**
  * Process document page by page using corrected logic with superior formatting
  */
-function processDocumentByPages(layout: IDocumentLayout, processingTime?: number): DocumentTextResult {
+export function processDocumentByPages(layout: IDocumentLayout, processingTime?: number): DocumentTextResult {
   if (!layout.blocks) {
     return {
       pages: [],
@@ -401,7 +364,7 @@ function processDocumentByPages(layout: IDocumentLayout, processingTime?: number
 /**
  * Format document text with page delimiters as requested
  */
-function formatTextWithPageDelimiters(result: DocumentTextResult): string {
+export function formatTextWithPageDelimiters(result: DocumentTextResult): string {
   let output = '';
   
   for (const page of result.pages) {
@@ -485,7 +448,7 @@ config();
 
 type DocumentAIClient = DocumentProcessorServiceClient;
 
-class DocumentAIProcessor {
+export class DocumentAIProcessor {
   private readonly client: DocumentAIClient;
   private readonly processorId: string;
   private readonly location: string;
@@ -646,5 +609,9 @@ async function main() {
   }
 }
 
-main();
+// Only run main if this file is executed directly
+// @ts-ignore
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
 
