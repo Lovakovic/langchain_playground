@@ -16,17 +16,17 @@ type ILayoutTextBlock = protos.google.cloud.documentai.v1.Document.DocumentLayou
 type ILayoutTableBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTableBlock;
 
 /**
- * Extract text from a document layout block.
- * This function handles the recursive extraction of text from nested blocks.
+ * Extract text from a document layout block using the EXACT same logic as index.ts.
+ * This provides superior text formatting with proper newlines.
  * @param block The layout block from Document AI response.
  * @returns The text content of the block.
  */
-function getTextFromBlock(block: IDocumentLayoutBlock): string {
+function getTextFromLayoutBlock(block: IDocumentLayoutBlock): string {
   if (block.textBlock) {
     let text = block.textBlock.text || '';
     if (block.textBlock.blocks?.length) {
       const childTexts = block.textBlock.blocks
-        .map((b) => getTextFromBlock(b))
+        .map((b) => getTextFromLayoutBlock(b))
         .filter(t => t.trim().length > 0);
       if (childTexts.length > 0) {
         text = text ? `${text}\n${childTexts.join('\n')}` : childTexts.join('\n');
@@ -40,7 +40,7 @@ function getTextFromBlock(block: IDocumentLayoutBlock): string {
       .map(
         (row) => (row.cells || [])
           .map((cell) => (cell.blocks || [])
-            .map((b) => getTextFromBlock(b))
+            .map((b) => getTextFromLayoutBlock(b))
             .filter(t => t.trim().length > 0)
             .join(' '),
           )
@@ -52,7 +52,7 @@ function getTextFromBlock(block: IDocumentLayoutBlock): string {
   if (block.listBlock?.listEntries?.length) {
     return block.listBlock.listEntries
       .map((entry) => (entry.blocks || [])
-        .map((b) => getTextFromBlock(b))
+        .map((b) => getTextFromLayoutBlock(b))
         .filter(t => t.trim().length > 0)
         .join(' '),
       )
@@ -73,7 +73,7 @@ function isTableBlock(block: IDocumentLayoutBlock): block is IDocumentLayoutBloc
 }
 
 
-// Universal content types for any document
+// Enhanced content types for superior formatting
 interface ContentBlock {
   id: string;
   type: 'heading' | 'paragraph' | 'list-item' | 'table' | 'section';
@@ -87,14 +87,16 @@ interface ContentBlock {
   children?: ContentBlock[];
 }
 
-interface DocumentStructure {
-  title?: string;
+interface ProcessedPage {
+  pageNumber: number;
+  text: string;
   sections: ContentBlock[];
-  metadata: {
-    pages: number;
-    totalBlocks: number;
-    processingTime?: number;
-  };
+}
+
+export interface DocumentTextResult {
+  pages: ProcessedPage[];
+  totalPages: number;
+  processingTime?: number;
 }
 
 /**
@@ -156,12 +158,12 @@ function groupRelatedBlocks(blocks: IDocumentLayoutBlock[]): ContentBlock[][] {
   
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
-    const text = getTextFromBlock(block);
+    const text = getTextFromLayoutBlock(block);
     
     if (!text.trim()) continue;
 
-    const prevText = i > 0 ? getTextFromBlock(blocks[i - 1]) : undefined;
-    const nextText = i < blocks.length - 1 ? getTextFromBlock(blocks[i + 1]) : undefined;
+    const prevText = i > 0 ? getTextFromLayoutBlock(blocks[i - 1]) : undefined;
+    const nextText = i < blocks.length - 1 ? getTextFromLayoutBlock(blocks[i + 1]) : undefined;
     
     const { type, level } = inferContentType(
       text, 
@@ -232,172 +234,206 @@ function buildHierarchicalStructure(blockGroups: ContentBlock[][]): ContentBlock
 
   return sections;
 }
+/**
+ * Format content blocks exactly like index.ts does - superior text layout
+ */
+function formatContentBlocksLikeIndex(sections: ContentBlock[]): string {
+  const formatBlock = (block: ContentBlock): string => {
+    switch (block.type) {
+      case 'heading':
+        return `${block.content}\n`;
+        
+      case 'section':
+        let text = `${block.content}\n`;
+        if (block.children) {
+          text += block.children.map(formatBlock).join('');
+        }
+        return text;
+        
+      case 'list-item':
+        return `${block.content}\n`;
+        
+      case 'table':
+        return `${block.content}\n`;
+        
+      case 'paragraph':
+      default:
+        return `${block.content}\n`;
+    }
+  };
+
+  return sections.map(formatBlock).join('\n');
+}
 
 /**
- * Universal document structure analyzer - works with any document type
+ * Return only top-level blocks without nested children to prevent duplication.
+ * The getTextFromLayoutBlock function already handles recursive text extraction.
  */
-function analyzeDocumentStructure(layout: IDocumentLayout, processingTime?: number): DocumentStructure {
+function flattenAllBlocks(blocks: IDocumentLayoutBlock[]): IDocumentLayoutBlock[] {
+  return blocks;
+}
+
+/**
+ * Calculate total pages by recursively traversing all blocks
+ */
+function getAllPageEnds(blocks: IDocumentLayoutBlock[]): number[] {
+  const pageEnds: number[] = [];
+
+  const traverse = (block: IDocumentLayoutBlock): void => {
+    if (block.pageSpan?.pageEnd) {
+      pageEnds.push(block.pageSpan.pageEnd);
+    }
+
+    // Recursively check nested blocks
+    if (block.textBlock?.blocks) {
+      block.textBlock.blocks.forEach(traverse);
+    }
+    if (block.tableBlock?.bodyRows) {
+      block.tableBlock.bodyRows.forEach(row => {
+        row.cells?.forEach(cell => {
+          cell.blocks?.forEach(traverse);
+        });
+      });
+    }
+    if (block.listBlock?.listEntries) {
+      block.listBlock.listEntries.forEach(entry => {
+        entry.blocks?.forEach(traverse);
+      });
+    }
+  };
+
+  blocks.forEach(traverse);
+  return pageEnds;
+}
+
+/**
+ * Process document page by page using corrected logic with superior formatting
+ */
+export function processDocumentByPages(layout: IDocumentLayout, processingTime?: number): DocumentTextResult {
   if (!layout.blocks) {
     return {
-      sections: [],
-      metadata: { pages: 0, totalBlocks: 0, processingTime }
+      pages: [],
+      totalPages: 0,
+      processingTime
     };
   }
 
-  console.log(`🔍 DEBUG: Total layout blocks received: ${layout.blocks.length}`);
+  // Flatten all blocks first to work with individual blocks, not hierarchy
+  const allBlocks = flattenAllBlocks(layout.blocks);
 
-  // Group related blocks
-  const blockGroups = groupRelatedBlocks(layout.blocks);
-  
-  // Build hierarchical structure
-  const sections = buildHierarchicalStructure(blockGroups);
-  
-  // Detect document title (first heading or prominent text)
-  const title = sections.find(s => s.type === 'heading' || s.type === 'section')?.content;
-  
-  // Calculate metadata - recursively find all page spans
-  const getAllPageEnds = (blocks: IDocumentLayoutBlock[]): number[] => {
-    const pageEnds: number[] = [];
-    
-    const traverse = (block: IDocumentLayoutBlock) => {
-      if (block.pageSpan?.pageEnd) {
-        pageEnds.push(block.pageSpan.pageEnd);
-      }
-      
-      // Recursively check nested blocks
-      if (block.textBlock?.blocks) {
-        block.textBlock.blocks.forEach(traverse);
-      }
-      if (block.tableBlock?.bodyRows) {
-        block.tableBlock.bodyRows.forEach(row => {
-          row.cells?.forEach(cell => {
-            cell.blocks?.forEach(traverse);
-          });
-        });
-      }
-      if (block.listBlock?.listEntries) {
-        block.listBlock.listEntries.forEach(entry => {
-          entry.blocks?.forEach(traverse);
-        });
-      }
-    };
-    
-    blocks.forEach(traverse);
-    return pageEnds;
-  };
-  
+  // Calculate total pages 
   const allPageEnds = getAllPageEnds(layout.blocks);
-  const pages = allPageEnds.length > 0 ? Math.max(...allPageEnds) : 1;
-  console.log(`🔍 DEBUG: All page ends found (first 10): ${JSON.stringify(allPageEnds.slice(0, 10))}`);
-  console.log(`🔍 DEBUG: Total page spans found: ${allPageEnds.length}, Maximum page: ${pages}`);
+  const totalPages = allPageEnds.length > 0 ? Math.max(...allPageEnds) : 1;
+
+  const pages: ProcessedPage[] = [];
   
+  // Process each page by filtering individual blocks, not hierarchical ones
+  for (let i = 1; i <= totalPages; i++) {
+    const pageNum = i;
+    
+    // Get individual blocks that belong EXACTLY to this page
+    const individualPageBlocks = allBlocks.filter((block) => {
+      if (!block.pageSpan) {
+        return false;
+      }
+      // Only include blocks that are specifically on this page
+      return (block.pageSpan.pageStart ?? 0) === pageNum && (block.pageSpan.pageEnd ?? 0) === pageNum;
+    });
+
+    // Apply the superior formatting logic from index.ts to these page-specific blocks
+    const blockGroups = groupRelatedBlocks(individualPageBlocks);
+    const sections = buildHierarchicalStructure(blockGroups);
+    
+    // Format using the same logic as index.ts but for this page only
+    const pageText = formatContentBlocksLikeIndex(sections);
+
+    pages.push({
+      pageNumber: pageNum,
+      text: pageText.trim(),
+      sections
+    });
+  }
+
   return {
-    title: title?.substring(0, 100), // Limit title length
-    sections,
-    metadata: {
-      pages,
-      totalBlocks: layout.blocks.length,
-      processingTime
-    }
+    pages,
+    totalPages,
+    processingTime
   };
 }
 
 /**
- * Flexible output formatters for different use cases
+ * Format document text with page delimiters as requested
+ */
+export function formatTextWithPageDelimiters(result: DocumentTextResult): string {
+  let output = '';
+  
+  for (const page of result.pages) {
+    output += `--- Page ${page.pageNumber} starts ---\n`;
+    output += page.text;
+    output += `\n--- Page ${page.pageNumber} ends ---\n\n`;
+  }
+  
+  return output;
+}
+
+/**
+ * Enhanced document formatter with multiple output options
  */
 class DocumentFormatter {
-  static toJSON(structure: DocumentStructure): string {
-    return JSON.stringify(structure, null, 2);
+  static toJSON(result: DocumentTextResult): string {
+    return JSON.stringify(result, null, 2);
   }
 
-  static toYAML(structure: DocumentStructure): string {
-    // Simple YAML formatter - could use a library for more complex cases
-    const formatBlock = (block: ContentBlock, indent = 0): string => {
-      const prefix = '  '.repeat(indent);
-      let yaml = `${prefix}- id: "${block.id}"\n`;
-      yaml += `${prefix}  type: "${block.type}"\n`;
-      if (block.level) yaml += `${prefix}  level: ${block.level}\n`;
-      yaml += `${prefix}  content: "${block.content.replace(/"/g, '\\"')}"\n`;
+  static toMarkdown(result: DocumentTextResult): string {
+    let markdown = `# Document Analysis\n\n`;
+    markdown += `**Total Pages:** ${result.totalPages}  \n`;
+    markdown += `**Processing Time:** ${result.processingTime}ms\n\n`;
+
+    for (const page of result.pages) {
+      markdown += `## Page ${page.pageNumber}\n\n`;
       
-      if (block.children && block.children.length > 0) {
-        yaml += `${prefix}  children:\n`;
-        yaml += block.children.map(child => formatBlock(child, indent + 2)).join('');
+      for (const section of page.sections) {
+        switch (section.type) {
+          case 'heading':
+          case 'section':
+            const level = Math.min(section.level || 1, 4) + 2; // h3-h6
+            markdown += `${'#'.repeat(level)} ${section.content}\n\n`;
+            if (section.children) {
+              section.children.forEach(child => {
+                if (child.type === 'list-item') {
+                  markdown += `- ${child.content}\n`;
+                } else {
+                  markdown += `${child.content}\n\n`;
+                }
+              });
+            }
+            break;
+          case 'list-item':
+            markdown += `- ${section.content}\n`;
+            break;
+          case 'table':
+            markdown += `| ${section.content.replace(/\|/g, ' \\| ')} |\n|---|\n\n`;
+            break;
+          default:
+            markdown += `${section.content}\n\n`;
+        }
       }
-      
-      return yaml;
-    };
-
-    let yaml = `title: "${structure.title || 'Untitled Document'}"\n`;
-    yaml += `metadata:\n  pages: ${structure.metadata.pages}\n  totalBlocks: ${structure.metadata.totalBlocks}\n`;
-    if (structure.metadata.processingTime) {
-      yaml += `  processingTime: ${structure.metadata.processingTime}\n`;
     }
-    yaml += `sections:\n`;
-    yaml += structure.sections.map(section => formatBlock(section, 1)).join('');
-    
-    return yaml;
-  }
 
-  static toMarkdown(structure: DocumentStructure): string {
-    const formatBlock = (block: ContentBlock): string => {
-      switch (block.type) {
-        case 'heading':
-          const headingLevel = Math.min(block.level || 1, 6);
-          return `${'#'.repeat(headingLevel)} ${block.content}\n\n`;
-          
-        case 'section':
-          const sectionLevel = Math.min(block.level || 2, 6);
-          let md = `${'#'.repeat(sectionLevel)} ${block.content}\n\n`;
-          if (block.children) {
-            md += block.children.map(formatBlock).join('');
-          }
-          return md;
-          
-        case 'list-item':
-          return `- ${block.content}\n`;
-          
-        case 'table':
-          // Simple table representation
-          return `| ${block.content} |\n|---|\n\n`;
-          
-        case 'paragraph':
-        default:
-          return `${block.content}\n\n`;
-      }
-    };
-
-    let markdown = '';
-    if (structure.title) {
-      markdown += `# ${structure.title}\n\n`;
-    }
-    
-    markdown += structure.sections.map(formatBlock).join('');
-    
     return markdown;
   }
 
-  static toPlainText(structure: DocumentStructure): string {
-    const formatBlock = (block: ContentBlock): string => {
-      let text = block.content;
-      
-      if (block.type === 'heading' || block.type === 'section') {
-        text = text.toUpperCase();
-      }
-      
-      if (block.children) {
-        text += '\n' + block.children.map(formatBlock).join('\n');
-      }
-      
-      return text;
-    };
+  static toPlainText(result: DocumentTextResult): string {
+    let text = `DOCUMENT ANALYSIS\n${'='.repeat(50)}\n\n`;
+    text += `Total Pages: ${result.totalPages}\n`;
+    text += `Processing Time: ${result.processingTime}ms\n\n`;
 
-    let text = '';
-    if (structure.title) {
-      text += `${structure.title.toUpperCase()}\n${'='.repeat(structure.title.length)}\n\n`;
+    for (const page of result.pages) {
+      text += `PAGE ${page.pageNumber}\n${'-'.repeat(20)}\n\n`;
+      text += page.text;
+      text += `\n\n`;
     }
-    
-    text += structure.sections.map(formatBlock).join('\n\n');
-    
+
     return text;
   }
 }
@@ -412,7 +448,7 @@ config();
 
 type DocumentAIClient = DocumentProcessorServiceClient;
 
-class DocumentAIProcessor {
+export class DocumentAIProcessor {
   private readonly client: DocumentAIClient;
   private readonly processorId: string;
   private readonly location: string;
@@ -479,57 +515,65 @@ class DocumentAIProcessor {
       console.log(`✅ Processing completed in ${processingTime}ms`);
       console.log(`📄 Document has ${document.pages?.length} pages and ${document.documentLayout.blocks.length} layout blocks`);
 
-      // Analyze document structure universally
-      const documentStructure = analyzeDocumentStructure(document.documentLayout, processingTime);
+      // Process document page by page using enhanced logic with superior formatting
+      const documentResult = processDocumentByPages(document.documentLayout, processingTime);
       
       // Generate multiple output formats
       const outputFormats = {
-        json: DocumentFormatter.toJSON(documentStructure),
-        yaml: DocumentFormatter.toYAML(documentStructure),
-        markdown: DocumentFormatter.toMarkdown(documentStructure),
-        text: DocumentFormatter.toPlainText(documentStructure)
+        textWithDelimiters: formatTextWithPageDelimiters(documentResult),
+        json: DocumentFormatter.toJSON(documentResult),
+        markdown: DocumentFormatter.toMarkdown(documentResult),
+        text: DocumentFormatter.toPlainText(documentResult)
       };
 
       // Save all formats
-      const baseFilename = path.join(currentDir, 'document-structure');
-      fs.writeFileSync(`${baseFilename}.json`, outputFormats.json);
-      fs.writeFileSync(`${baseFilename}.yaml`, outputFormats.yaml);
-      fs.writeFileSync(`${baseFilename}.md`, outputFormats.markdown);
-      fs.writeFileSync(`${baseFilename}.txt`, outputFormats.text);
+      const baseFilename = path.join(currentDir, 'document');
+      fs.writeFileSync(`${baseFilename}-text.txt`, outputFormats.textWithDelimiters);
+      fs.writeFileSync(`${baseFilename}-analysis.json`, outputFormats.json);
+      fs.writeFileSync(`${baseFilename}-analysis.md`, outputFormats.markdown);
+      fs.writeFileSync(`${baseFilename}-formatted.txt`, outputFormats.text);
 
-      console.log(`📊 Structured outputs saved:`);
-      console.log(`   JSON: ${baseFilename}.json`);
-      console.log(`   YAML: ${baseFilename}.yaml`);
-      console.log(`   Markdown: ${baseFilename}.md`);
-      console.log(`   Text: ${baseFilename}.txt`);
+      console.log(`📊 Enhanced outputs saved:`);
+      console.log(`   Text with delimiters: ${baseFilename}-text.txt`);
+      console.log(`   JSON analysis: ${baseFilename}-analysis.json`);
+      console.log(`   Markdown: ${baseFilename}-analysis.md`);
+      console.log(`   Formatted text: ${baseFilename}-formatted.txt`);
 
-      // Enhanced analysis output
-      console.log(`\n🔍 DOCUMENT STRUCTURE ANALYSIS:`);
-      console.log(`📋 Title: ${documentStructure.title || 'No title detected'}`);
-      console.log(`📑 Sections: ${documentStructure.sections.length}`);
-      console.log(`📄 Pages: ${documentStructure.metadata.pages}`);
-      console.log(`🧱 Total blocks: ${documentStructure.metadata.totalBlocks}`);
+      // Enhanced analysis output with content structure information
+      console.log(`\n🔍 DOCUMENT PROCESSING ANALYSIS:`);
+      console.log(`📄 Total pages: ${documentResult.totalPages}`);
+      console.log(`🧱 Total blocks: ${document.documentLayout.blocks.length}`);
 
-      console.log(`\n📖 CONTENT BREAKDOWN:`);
-      const contentTypes = documentStructure.sections.reduce((acc, section) => {
-        acc[section.type] = (acc[section.type] || 0) + 1;
-        if (section.children) {
-          section.children.forEach(child => {
-            acc[child.type] = (acc[child.type] || 0) + 1;
-          });
-        }
-        return acc;
-      }, {} as Record<string, number>);
+      console.log(`\n📖 PAGE BREAKDOWN:`);
+      documentResult.pages.forEach(page => {
+        console.log(`   Page ${page.pageNumber}: ${page.text.length} characters, ${page.sections.length} sections`);
+      });
 
-      Object.entries(contentTypes).forEach(([type, count]) => {
+      // Content type analysis across all pages
+      console.log(`\n📋 CONTENT TYPE ANALYSIS:`);
+      const allContentTypes: Record<string, number> = {};
+      documentResult.pages.forEach(page => {
+        page.sections.forEach(section => {
+          allContentTypes[section.type] = (allContentTypes[section.type] || 0) + 1;
+          if (section.children) {
+            section.children.forEach(child => {
+              allContentTypes[child.type] = (allContentTypes[child.type] || 0) + 1;
+            });
+          }
+        });
+      });
+
+      Object.entries(allContentTypes).forEach(([type, count]) => {
         console.log(`   ${type}: ${count} blocks`);
       });
 
       console.log(`\n🎉 Successfully processed ${path.basename(filePath)}`);
       console.log(`📊 Summary:`);
       console.log(`   - Processing time: ${processingTime}ms`);
-      console.log(`   - Document structure created with ${documentStructure.sections.length} sections`);
-      console.log(`   - Output formats: JSON, YAML, Markdown, Plain Text`);
+      console.log(`   - ${documentResult.totalPages} pages processed with superior formatting`);
+      console.log(`   - Content structure analyzed (headings, paragraphs, tables, lists)`);
+      console.log(`   - Multiple output formats: Text with delimiters, JSON, Markdown, Formatted text`);
+      console.log(`   - Correct page separation with enhanced text layout`);
 
     } catch (error: any) {
       console.error('💥 Top-level error occurred:');
@@ -565,5 +609,9 @@ async function main() {
   }
 }
 
-main();
+// Only run main if this file is executed directly
+// @ts-ignore
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
 

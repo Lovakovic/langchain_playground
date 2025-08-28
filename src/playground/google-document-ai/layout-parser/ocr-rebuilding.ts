@@ -3,13 +3,20 @@ import { ChatVertexAI } from '@langchain/google-vertexai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
+import { fromBuffer } from 'pdf2pic';
+import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore
-import { DocumentAIProcessor, formatTextWithPageDelimiters, processDocumentByPages, type DocumentTextResult } from './improved.ts';
+import { DocumentAIProcessor, formatTextWithPageDelimiters, processDocumentByPages, type DocumentTextResult } from './index.ts';
+import type { MessageContentComplex } from '@langchain/core/messages';
 
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(__filename);
+const execAsync = promisify(exec);
 
 // Load environment variables
 config();
@@ -17,9 +24,12 @@ config();
 /**
  * Creates the same monolithic preprocessing prompt used in monkey-ai
  * This is the exact same logic from extraction.prompts.ts
+ * Updated to mention that images are also provided for context
  */
 function createMonolithicPreprocessingPrompt(totalPageCount: number): string {
-  return `You are an elite document layout analyst and OCR correction specialist. Your task is to process the entire raw OCR text from a multi-page menu document. You will receive the text concatenated together, with markers like "--- CONTENT FROM PAGE X BEGINS ---" indicating page breaks.
+  return `You are an elite document layout analyst and OCR correction specialist. Your task is to process the entire raw OCR text from a multi-page menu document. You will receive both the OCR text and corresponding page images for visual context, with markers like "--- CONTENT FROM PAGE X BEGINS ---" indicating page breaks.
+
+The images provided will help you understand the spatial layout and visual context that the OCR may have missed or misinterpreted. Use the visual information from the images to better associate items with their descriptions, prices, and allergen codes.
 
 Your goal is to restructure this raw text into a single, clean, logically-ordered Markdown document. You MUST correct spatial ambiguities and associate item names with their descriptions, prices, and allergen codes, but you must strictly adhere to the original document's structure and content.
 
@@ -30,13 +40,14 @@ Your goal is to restructure this raw text into a single, clean, logically-ordere
 2.  **USE MARKDOWN FOR STRUCTURE:**
     -   **Headers:** Use headers (\`#\`, \`##\`) for section and sub-section titles.
     -   **Section Notes:** Use blockquotes (\`>\`) for general text that applies to a whole section, placing it directly under the section header.
-    -   **Items:** Use bullet points (\`-\`) for each distinct menu item.
+    -   **Items:** DO NOT add any bullet points (\`-\`) or other prefixes. Preserve the EXACT original formatting and prefixes as they appear in the menu.
 3.  **STRUCTURE & CONTENT FIDELITY RULES:**
     -   **NO GLOBAL REORDERING:** You MUST maintain the high-level sequence of the menu. The order of major sections (e.g., "Appetizers" then "Main Courses" then "Desserts") MUST NOT be changed. The relative order of items within a section MUST be preserved.
     -   **ALLOW LOCAL REORDERING FOR COHERENCE:** You ARE PERMITTED to reorder text elements *within a single item's block* to create a logical, readable line. For example, if the OCR extracts a price before the item name due to column layout, you MUST reorder them correctly.
-        -   **Example OCR Input:** "12.50 ..... Pizza Salami ..... A, G"
-        -   **Correct Reordered Output:** "- Pizza Salami (A, G) - 12.50"
-    -   **PRESERVE PREFIXES:** You MUST keep any original item prefixes, such as numbers or codes (e.g., "25. Rumpsteak", "P1. Pizza Salami").
+        -   **Example OCR Input:** "12.50 ..... 20. Pizza Salami ..... A, G"
+        -   **Correct Reordered Output:** "20. Pizza Salami (A, G) - 12.50" (preserve the "20." prefix exactly as it appears)
+    -   **PRESERVE ORIGINAL PREFIXES ONLY:** You MUST keep any original item prefixes exactly as they appear, such as numbers or codes (e.g., "25. Rumpsteak", "P1. Pizza Salami"). DO NOT add bullet points or other formatting prefixes that don't exist in the original.
+    -   **DISTINGUISH ITEM vs CATEGORY DESCRIPTIONS:** Pay careful attention to whether descriptions apply to individual items or entire categories. Item-level descriptions should stay with their specific items. Category-level descriptions should be placed under section headers as blockquotes. DO NOT mix or move descriptions between items and categories.
     -   **PRESERVE ALL TEXT:** You MUST NOT summarize, translate, or discard any text. Every word, number, and symbol from the original OCR must be present in your final output.
 4.  **ASSOCIATION & MERGING RULES (Your Core Task):**
     -   An item name, its description, its allergen codes/declarations, and its price(s) MUST be grouped into a single, cohesive unit, typically a single line or a single multi-line list item.
@@ -65,11 +76,11 @@ HAUPTGERICHTE
 # STEAKS
 > Alle Steaks serviert mit Beilage
 
-- 25. Rumpsteak (Argentinisches Rind) - 25,50
+25. Rumpsteak (Argentinisches Rind) - 25,50
 
 --- PAGE_BREAK ---
 
-- 26. Rib-Eye (G, A1) - 32,00
+26. Rib-Eye (G, A1) - 32,00
 
 # HAUPTGERICHTE
 
@@ -81,11 +92,14 @@ Now, process the entire document provided and return a single, structured Markdo
 /**
  * OCR Rebuilding Script
  * Replicates the monolithic preprocessing behavior from monkey-ai
- * Now with integrated Document AI processing!
+ * Now with integrated Document AI processing AND PDF images!
  */
 class OCRRebuilder {
   private model: ChatVertexAI;
   private documentProcessor: DocumentAIProcessor;
+  private readonly targetPixelWidth = 2400;
+  private readonly minDpi = 150;
+  private readonly maxDpi = 300;
 
   constructor() {
     // Initialize the same model used in monkey-ai
@@ -97,34 +111,103 @@ class OCRRebuilder {
     // Initialize Document AI processor from improved.ts
     this.documentProcessor = new DocumentAIProcessor();
 
-    console.log('🤖 OCR Rebuilding Script - Complete Pipeline');
+    console.log('🤖 OCR Rebuilding Script - Enhanced Pipeline');
     console.log('=' .repeat(60));
-    console.log('📋 Pipeline: PDF → Document AI → LLM Cleanup → Clean Text');
+    console.log('📋 Pipeline: PDF → Images + Document AI → LLM (Images + Text) → Clean Text');
   }
 
   /**
-   * Process raw OCR text and rebuild it using LLM
+   * Get PDF dimensions using pdfinfo (same as monkey-ai)
    */
-  async processOCRText(rawText: string): Promise<string> {
-    console.log('🧠 Processing raw OCR text with LLM...');
+  private async getPdfDimensions(pdfPath: string): Promise<{ width: number; height: number } | null> {
+    try {
+      const { stdout } = await execAsync(`pdfinfo "${pdfPath}"`);
+      const sizeMatch = stdout.match(/Page size:\s*(\d+(?:\.\d+)?)\s+x\s+(\d+(?:\.\d+)?)\s+pts/);
+      if (sizeMatch) {
+        return { width: parseFloat(sizeMatch[1]), height: parseFloat(sizeMatch[2]) };
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not get PDF dimensions via pdfinfo. Poppler-utils might be missing. Using fallback DPI.');
+    }
+    return null;
+  }
+
+  /**
+   * Calculate adaptive DPI (same logic as monkey-ai)
+   */
+  private async calculateAdaptiveDPI(pdfPath: string): Promise<number> {
+    const dimensions = await this.getPdfDimensions(pdfPath);
+    if (!dimensions || dimensions.width === 0) {
+      return 250;
+    }
+    const pdfWidthInches = dimensions.width / 72;
+    const calculatedDPI = Math.round(this.targetPixelWidth / pdfWidthInches);
+    return Math.max(this.minDpi, Math.min(this.maxDpi, calculatedDPI));
+  }
+
+  /**
+   * Convert PDF to images using exact monkey-ai settings
+   */
+  private async getImagesFromPdf(pdfBuffer: Buffer, tempDir: string, adaptiveDPI: number): Promise<Map<number, Buffer>> {
+    const converter = fromBuffer(pdfBuffer, {
+      density: adaptiveDPI,
+      format: 'jpeg',
+      quality: 95,
+      saveFilename: 'page',
+      savePath: tempDir,
+    });
+    const pageImageResults = await converter.bulk(-1, { responseType: 'buffer' });
+    const imageMap = new Map<number, Buffer>();
+    pageImageResults.forEach((result) => {
+      if (result.buffer) {
+        imageMap.set(result.page, result.buffer);
+      }
+    });
+    return imageMap;
+  }
+
+  /**
+   * Process raw OCR text with images and rebuild using LLM
+   */
+  async processOCRTextWithImages(rawText: string, imageBuffersMap: Map<number, Buffer>): Promise<string> {
+    console.log('🧠 Processing raw OCR text + images with LLM...');
     
     // Count the number of pages from the input text
     const pageMatches = rawText.match(/--- Page \d+ starts ---/g);
     const totalPageCount = pageMatches ? pageMatches.length : 1;
     
     console.log(`📊 Detected ${totalPageCount} pages in the document`);
+    console.log(`🖼️ Available images for ${imageBuffersMap.size} pages`);
 
     // Convert the format from improved.ts to monkey-ai format
     const convertedText = this.convertToMonkeyAIFormat(rawText);
     
-    // Create the same prompt used in monkey-ai
+    // Create the enhanced prompt that mentions images
     const prompt = createMonolithicPreprocessingPrompt(totalPageCount);
+    
+    // Build message content with both images and text
+    const messageContent: MessageContentComplex[] = [];
+    
+    // Add images first (one per page)
+    for (let pageNum = 1; pageNum <= totalPageCount; pageNum++) {
+      const imageBuffer = imageBuffersMap.get(pageNum);
+      if (imageBuffer) {
+        messageContent.push({
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${imageBuffer.toString('base64')}` },
+        });
+      }
+    }
+    
+    // Add the OCR text
+    messageContent.push({ type: 'text', text: convertedText });
+    
     const messages = [
       new SystemMessage(prompt),
-      new HumanMessage({ content: convertedText })
+      new HumanMessage({ content: messageContent })
     ];
 
-    console.log('🚀 Calling Gemini 2.5-pro to rebuild OCR text...');
+    console.log('🚀 Calling Gemini 2.5-pro with images + OCR text...');
     const startTime = Date.now();
 
     try {
@@ -161,94 +244,103 @@ class OCRRebuilder {
   }
 
   /**
-   * Process PDF with Document AI to get raw OCR text
+   * Process PDF with both Document AI (OCR) and image conversion
    */
-  async processWithDocumentAI(pdfPath: string): Promise<string> {
-    console.log(`📖 Processing PDF with Document AI: ${pdfPath}`);
+  async processWithDocumentAIAndImages(pdfPath: string): Promise<{ rawText: string; imageBuffersMap: Map<number, Buffer> }> {
+    console.log(`📖 Processing PDF with Document AI + Images: ${pdfPath}`);
     
     if (!fs.existsSync(pdfPath)) {
       throw new Error(`PDF file not found: ${pdfPath}`);
     }
 
-    // Use the DocumentAIProcessor from improved.ts
-    // We need to extract the processing logic from it
-    const startTime = Date.now();
     const buffer = fs.readFileSync(pdfPath);
+    const tempDir = path.join(os.tmpdir(), `ocr-rebuilding-${uuidv4()}`);
+    await fs.promises.mkdir(tempDir, { recursive: true });
     
-    console.log(`🚀 Calling Google Document AI...`);
-    
-    // We'll use the internal logic similar to improved.ts but return just the text
-    const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID!;
-    const location = process.env.DOCUMENT_AI_LOCATION!;
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID!;
+    try {
+      // Step 1: Calculate adaptive DPI
+      console.log('🔧 Calculating adaptive DPI...');
+      const adaptiveDPI = await this.calculateAdaptiveDPI(pdfPath);
+      console.log(`📐 Using DPI: ${adaptiveDPI}`);
+      
+      // Step 2: Convert PDF to images (parallel with Document AI)
+      console.log('🖼️ Converting PDF to images...');
+      const imageStartTime = Date.now();
+      const imageBuffersMap = await this.getImagesFromPdf(buffer, tempDir, adaptiveDPI);
+      const imageTime = Date.now() - imageStartTime;
+      console.log(`✅ Image conversion completed in ${imageTime}ms (${imageBuffersMap.size} pages)`);
+      
+      // Step 3: Process with Document AI
+      console.log('🚀 Calling Google Document AI...');
+      const docAIStartTime = Date.now();
+      
+      const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID!;
+      const location = process.env.DOCUMENT_AI_LOCATION!;
+      const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID!;
 
-    if (!processorId || !location || !projectId) {
-      throw new Error(
-        'Missing required Document AI environment variables: DOCUMENT_AI_PROCESSOR_ID, DOCUMENT_AI_LOCATION, GOOGLE_CLOUD_PROJECT_ID'
+      if (!processorId || !location || !projectId) {
+        throw new Error(
+          'Missing required Document AI environment variables: DOCUMENT_AI_PROCESSOR_ID, DOCUMENT_AI_LOCATION, GOOGLE_CLOUD_PROJECT_ID'
+        );
+      }
+      
+      const { DocumentProcessorServiceClient } = await import('@google-cloud/documentai');
+      
+      const client = new DocumentProcessorServiceClient({
+        apiEndpoint: `${location}-documentai.googleapis.com`,
+      });
+      
+      const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+      const encodedContent = buffer.toString('base64');
+
+      const request = {
+        name,
+        rawDocument: {
+          content: encodedContent,
+          mimeType: 'application/pdf',
+        },
+      };
+
+      const [result] = await client.processDocument(request);
+      const { document } = result;
+
+      if (!document?.documentLayout?.blocks) {
+        throw new Error('Document AI returned an empty or invalid document object.');
+      }
+
+      const docAITime = Date.now() - docAIStartTime;
+      console.log(`✅ Document AI processing completed in ${docAITime}ms`);
+
+      // Convert Document AI response to the format that index.ts would create
+      const documentResult = processDocumentByPages(document.documentLayout, docAITime);
+      
+      // Format with page delimiters
+      const formattedText = formatTextWithPageDelimiters(documentResult);
+      
+      console.log(`📄 Extracted ${documentResult.totalPages} pages with ${formattedText.length} characters`);
+      
+      return { rawText: formattedText, imageBuffersMap };
+      
+    } finally {
+      // Cleanup temp directory
+      await fs.promises.rm(tempDir, { recursive: true, force: true }).catch((e) => 
+        console.warn(`Failed cleanup: ${tempDir}`, e)
       );
     }
-
-    // Unfortunately, we need to recreate the Document AI logic here since the improved.ts method is private
-    // Let's create a temporary file and call the processor method
-    
-    // Actually, let's take a different approach - call the processor's processPdf method
-    // and read the output file it creates
-    
-    console.log('🔄 Running Document AI processing...');
-    
-    // We need to temporarily modify the current working directory or create our own processor
-    // For now, let's create a simple Document AI call
-    
-    const { DocumentProcessorServiceClient } = await import('@google-cloud/documentai');
-    
-    const client = new DocumentProcessorServiceClient({
-      apiEndpoint: `${location}-documentai.googleapis.com`,
-    });
-    
-    const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
-    const encodedContent = buffer.toString('base64');
-
-    const request = {
-      name,
-      rawDocument: {
-        content: encodedContent,
-        mimeType: 'application/pdf',
-      },
-    };
-
-    const [result] = await client.processDocument(request);
-    const { document } = result;
-
-    if (!document?.documentLayout?.blocks) {
-      throw new Error('Document AI returned an empty or invalid document object.');
-    }
-
-    const processingTime = Date.now() - startTime;
-    console.log(`✅ Document AI processing completed in ${processingTime}ms`);
-
-    // Convert Document AI response to the format that improved.ts would create
-    const documentResult = processDocumentByPages(document.documentLayout, processingTime);
-    
-    // Format with page delimiters
-    const formattedText = formatTextWithPageDelimiters(documentResult);
-    
-    console.log(`📄 Extracted ${documentResult.totalPages} pages with ${formattedText.length} characters`);
-    
-    return formattedText;
   }
 
   /**
-   * Main processing function - complete pipeline
+   * Main processing function - enhanced pipeline with images
    */
   async run(pdfPath: string): Promise<void> {
     try {
-      console.log(`📄 Starting complete pipeline for: ${pdfPath}`);
+      console.log(`📄 Starting enhanced pipeline for: ${pdfPath}`);
 
-      // Step 1: Process PDF with Document AI to get raw OCR text
-      const rawText = await this.processWithDocumentAI(pdfPath);
+      // Step 1: Process PDF with both Document AI and image conversion
+      const { rawText, imageBuffersMap } = await this.processWithDocumentAIAndImages(pdfPath);
 
-      // Step 2: Process the raw text using the same logic as monkey-ai
-      const rebuiltText = await this.processOCRText(rawText);
+      // Step 2: Process with LLM using both OCR text and images
+      const rebuiltText = await this.processOCRTextWithImages(rawText, imageBuffersMap);
 
       // Step 3: Save both original OCR and rebuilt text
       const baseName = path.basename(pdfPath, path.extname(pdfPath));
@@ -266,25 +358,28 @@ class OCRRebuilder {
       console.log(`   Rebuilt markdown: ${markdownPath}`);
 
       // Analysis
-      console.log('\n🔍 PIPELINE ANALYSIS:');
+      console.log('\n🔍 ENHANCED PIPELINE ANALYSIS:');
       console.log(`📄 Raw OCR: ${rawText.length} characters`);
+      console.log(`🖼️ Images processed: ${imageBuffersMap.size} pages`);
       console.log(`📄 LLM Processed: ${rebuiltText.length} characters`);
       
       const pageBreakCount = (rebuiltText.match(/--- PAGE_BREAK ---/g) || []).length;
       console.log(`📖 Page breaks preserved: ${pageBreakCount}`);
       
-      console.log('\n🎉 Complete OCR rebuilding pipeline finished!');
+      console.log('\n🎉 Enhanced OCR rebuilding pipeline finished!');
       console.log('📊 Summary:');
-      console.log('   - Processed PDF with Google Document AI');
+      console.log('   - Converted PDF to high-quality images with adaptive DPI');
+      console.log('   - Processed PDF with Google Document AI for OCR text');
+      console.log('   - Sent both images AND OCR text to Gemini 2.5-pro');
       console.log('   - Applied monkey-ai monolithic preprocessing prompt');
-      console.log('   - Called Gemini 2.5-pro for intelligent text reconstruction');
+      console.log('   - Used visual context from images to improve text reconstruction');
       console.log('   - Preserved page structure with PAGE_BREAK delimiters');
-      console.log('   - Fixed OCR spatial issues and associated items with prices');
+      console.log('   - Fixed OCR spatial issues using visual + textual information');
       console.log('   - Maintained content fidelity while improving readability');
       console.log('   - Saved original OCR text and clean markdown output');
 
     } catch (error) {
-      console.error('💥 Error in OCR rebuilding pipeline:', error);
+      console.error('💥 Error in enhanced OCR rebuilding pipeline:', error);
       process.exit(1);
     }
   }
