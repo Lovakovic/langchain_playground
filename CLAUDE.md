@@ -33,7 +33,6 @@ Before running any code, ensure `.env` file exists with required credentials:
 
 ### Core Structure
 - **Examples** (`src/examples/`): Self-contained demonstrations of LangChain features. Each example should be runnable independently with its own `index.ts`.
-- **Shared Utilities** (`src/shared/utils/`): Reusable code including model configurations for different providers (Anthropic, OpenAI, Vertex AI).
 - **Playground** (`src/playground/`): Experimental utilities for PDF processing, content formatting, and other explorations.
 
 ### Key Dependencies
@@ -55,10 +54,8 @@ Before running any code, ensure `.env` file exists with required credentials:
 When adding new examples:
 1. Create a new directory under `src/examples/`
 2. Include a self-contained `index.ts` that demonstrates the feature
-3. Use shared model configurations from `src/shared/utils/models/`
-4. Ensure all required environment variables are documented
+3. Ensure all required environment variables are documented
 
 When working with LLM providers:
-- Model configurations are centralized in `src/shared/utils/models/`
 - Use the appropriate provider-specific package from @langchain namespace
 - Handle API keys through environment variables
