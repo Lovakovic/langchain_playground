@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import {tool} from "@langchain/core/tools";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import {HumanMessage, ToolMessage} from "@langchain/core/messages";
-import {convertJSONSchemaDraft7ToZod} from "../../shared/utils/json-schema-to-zod/json7ToZodSchema";
+import {convertJSONSchemaDraft7ToZod} from "../../../shared/utils/json-schema-to-zod/json7ToZodSchema";
 
 dotenv.config();
 
