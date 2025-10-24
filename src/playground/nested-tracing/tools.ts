@@ -25,7 +25,7 @@ export const createItemExtractionTool = () =>
     description: 'Extracts individual menu items from a menu section',
     schema: ItemExtractionToolSchema,
     func: async ({ items }) => {
-      // Simulate processing delay  
+      // Simulate processing delay
       await new Promise(resolve => setTimeout(resolve, 150));
       return { items, extractionComplete: true };
     },

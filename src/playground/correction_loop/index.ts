@@ -219,7 +219,7 @@ database:
     return `✅ Applied updates: ${updates}\n\nConfiguration updated successfully. Fixed: ${fixedCategories.join(", ") || "general improvements"}`;
   },
   {
-    name: "update_config", 
+    name: "update_config",
     description: "Update configuration to fix validation errors. Mention which categories you're fixing (security/performance/compliance).",
     schema: updateConfigSchema
   }
@@ -309,7 +309,7 @@ const performanceValidateTool = tool(
       : `⚡ Performance validation found ${perfErrors.length} issues: ${perfErrors.map(e => e.message).join("; ")}`;
   },
   {
-    name: "validate_performance", 
+    name: "validate_performance",
     description: "Validate configuration for performance optimization",
     schema: z.object({})
   }
@@ -349,7 +349,7 @@ const complianceValidateTool = tool(
   },
   {
     name: "validate_compliance",
-    description: "Validate configuration for compliance requirements", 
+    description: "Validate configuration for compliance requirements",
     schema: z.object({})
   }
 );

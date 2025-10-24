@@ -1,8 +1,7 @@
 import { BaseTracer, Run } from '@langchain/core/tracers/base';
 import { EventEmitter } from 'events';
 import { ProcessingPhase, ProcessingEvent } from './types';
-import { AIMessage } from '@langchain/core/messages';
-import { ToolCall } from '@langchain/core/dist/messages/tool';
+import { AIMessage, ToolCall } from '@langchain/core/messages';
 
 /**
  * Node to phase mapping - Maps LangGraph node names to processing phases

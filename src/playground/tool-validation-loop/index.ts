@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { 
   executeModelWithToolValidation, 
   PartialValidationError,
-  PartialValidationResult,
   ValidationConfigurable
 } from './model-loop-util';
 import { RunnableConfig } from "@langchain/core/runnables";

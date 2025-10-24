@@ -13,7 +13,7 @@
  */
 
 import { ChatAnthropic } from "@langchain/anthropic";
-import type { AIMessageChunk } from "@langchain/core/dist/messages/index.js";
+import type { AIMessageChunk } from "@langchain/core/messages";
 import * as dotenv from "dotenv";
 import { inspect } from "util";
 

@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
 import { ChatVertexAI } from '@langchain/google-vertexai';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import {ContentBlock, HumanMessage, SystemMessage} from '@langchain/core/messages';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -159,7 +159,7 @@ class OCRRebuilder {
     const pageImageResults = await converter.bulk(-1, { responseType: 'buffer' });
     const imageMap = new Map<number, Buffer>();
     pageImageResults.forEach((result) => {
-      if (result.buffer) {
+      if (result.buffer && result.page !== undefined) {
         imageMap.set(result.page, result.buffer);
       }
     });
@@ -186,7 +186,7 @@ class OCRRebuilder {
     const prompt = createMonolithicPreprocessingPrompt(totalPageCount);
     
     // Build message content with both images and text
-    const messageContent: MessageContentComplex[] = [];
+    const messageContent: ContentBlock[] = [];
     
     // Add images first (one per page)
     for (let pageNum = 1; pageNum <= totalPageCount; pageNum++) {

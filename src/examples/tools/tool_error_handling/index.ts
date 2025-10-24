@@ -23,7 +23,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import dotenv from "dotenv";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import * as readline from "readline";
-import { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint/dist/base";
+import { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 
 dotenv.config();
 

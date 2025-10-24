@@ -34,7 +34,7 @@ async function main() {
 
   try {
     // Get structured response
-    const review = await modelWithStructure.invoke(prompt) as MovieReview;
+    const review = await modelWithStructure.invoke(prompt);
 
     console.log(JSON.stringify(review, null, 2));
 

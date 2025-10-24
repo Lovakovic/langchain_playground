@@ -16,20 +16,5 @@ export interface JSONSchemaDraft7 {
 
 export type ZodSchemaProps = Record<string, ZodTypeAny>;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export type ZodPropType =
-  | ZodString
-  | ZodNumber
-  | ZodBoolean
-  | ZodNull
-  | ZodObject<Record<string, any>, 'strip', ZodTypeAny, Record<string, any>, Record<string, any>>
-  | ZodArray<ZodPropType>
-  | ZodEnum<[string, ...string[]]>
-  | ZodOptional<ZodString>
-  | ZodOptional<ZodNumber>
-  | ZodOptional<ZodBoolean>
-  | ZodOptional<ZodNull>
-  | ZodOptional<ZodObject<Record<string, any>, 'strip', ZodTypeAny, Record<string, any>, Record<string, any>>>
-  | ZodOptional<ZodArray<ZodPropType>>
-  | ZodOptional<ZodEnum<[string, ...string[]]>>
-  | ZodAny;
+// ZodPropType is simply an alias for ZodTypeAny since Zod v4+ handles all types uniformly
+export type ZodPropType = ZodTypeAny;

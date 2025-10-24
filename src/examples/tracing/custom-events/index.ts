@@ -626,7 +626,7 @@ export async function mainWithWebImport() {
       await dispatchCustomEventWeb(
         "web_event",
         { value, timestamp: Date.now() },
-        config  // <-- This is required in web environments
+        config as Parameters<typeof dispatchCustomEventWeb>[2]  // Type compatibility fix for module resolution
       );
       return value.toUpperCase();
     }

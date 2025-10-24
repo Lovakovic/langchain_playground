@@ -43,7 +43,6 @@ import { ChatVertexAI } from "@langchain/google-vertexai";
 import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { Serialized } from "@langchain/core/load/serializable";
 import { LLMResult } from "@langchain/core/outputs";
-import { BaseMessage } from "@langchain/core/messages";
 import { RunnableConfig } from "@langchain/core/runnables";
 import * as util from "util";
 import dotenv from "dotenv";
@@ -298,12 +297,12 @@ Provide confidence scores and reasoning for each categorization.`;
 
   // Map results back to items
   const analysisMap = new Map(
-    result.analyses.map(analysis => [analysis.itemId, analysis])
+    result.analyses.map((analysis: z.infer<typeof AnalysisResultSchema>) => [analysis.itemId, analysis])
   );
 
   const updatedItems = state.items.map(item => ({
     ...item,
-    analysis: analysisMap.get(item.id)
+    analysis: analysisMap.get(item.id) as z.infer<typeof AnalysisResultSchema> | undefined
   }));
 
   const analysisTime = Date.now() - startTime;
@@ -386,15 +385,15 @@ async function main() {
   // Display final results
   console.log("\n📊 Final Analysis Results:");
   console.log("=".repeat(50));
-  
-  result.items.forEach((item: any) => {
+
+  ((result as unknown as AnalysisState).items).forEach((item) => {
     console.log(`\n📄 Item: ${item.id}`);
     console.log(`Text: ${item.text}`);
     console.log(`Keywords: ${item.keywords?.join(", ")}`);
     
     if (item.analysis) {
       console.log("Categories:");
-      item.analysis.categories.forEach((cat: any) => {
+      item.analysis.categories.forEach((cat) => {
         console.log(`  - ${cat.name} (${(cat.confidence * 100).toFixed(1)}%): ${cat.reasoning}`);
       });
       console.log(`Summary: ${item.analysis.summary}`);
@@ -402,9 +401,10 @@ async function main() {
   });
 
   console.log("\n⏱️  Processing Metrics:");
-  console.log(`Keyword Extraction: ${result.processingMetrics?.keywordExtractionTime}ms`);
-  console.log(`Analysis: ${result.processingMetrics?.analysisTime}ms`);
-  console.log(`Total Items: ${result.processingMetrics?.totalItems}`);
+  const metrics = (result as unknown as AnalysisState).processingMetrics;
+  console.log(`Keyword Extraction: ${metrics?.keywordExtractionTime}ms`);
+  console.log(`Analysis: ${metrics?.analysisTime}ms`);
+  console.log(`Total Items: ${metrics?.totalItems}`);
 }
 
 if (require.main === module) {

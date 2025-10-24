@@ -17,7 +17,6 @@ import { Annotation, CompiledStateGraph, MemorySaver, StateDefinition, StateGrap
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { ChatVertexAI } from "@langchain/google-vertexai";
 import dotenv from "dotenv";
-import fetch from "node-fetch";
 
 dotenv.config();
 

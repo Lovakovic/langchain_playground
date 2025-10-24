@@ -29,8 +29,7 @@ import * as readline from "readline";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import fetch from "node-fetch";
-import { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint/dist/base";
+import { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 
 /**
  * Tool Schema Definition
@@ -86,7 +85,7 @@ const fetchCatPictureTool = tool(
       
       // Download the image
       const imageResponse = await fetch(imageUrl);
-      const buffer = await imageResponse.buffer();
+      const buffer = Buffer.from(await imageResponse.arrayBuffer());
       
       // Save to Desktop
       const desktopPath = path.join(os.homedir(), 'Desktop');

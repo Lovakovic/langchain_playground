@@ -132,7 +132,8 @@ const handleEnumAndDescription = (prop: JSONSchemaDraft7Property, zodProp: ZodPr
 const handleOptionalProperties = (required: string[], key: string, zodProp: ZodTypeAny): ZodTypeAny => {
   if (!required.includes(key)) {
     // Check if the property is already optional
-    if (zodProp._def.typeName !== 'ZodOptional') {
+    // In Zod v4+, use .def.typeName to check the type
+    if (zodProp.def && 'typeName' in zodProp.def && zodProp.def.typeName !== 'ZodOptional') {
       return zodProp.optional();
     }
   }
