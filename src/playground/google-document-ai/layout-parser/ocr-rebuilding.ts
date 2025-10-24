@@ -11,11 +11,9 @@ import { fromBuffer } from 'pdf2pic';
 import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore
 import {
-  DocumentAIProcessor,
   formatTextWithPageDelimiters,
   processDocumentByPages,
-  type DocumentTextResult,
-} from './index.ts';
+} from './index';
 
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
