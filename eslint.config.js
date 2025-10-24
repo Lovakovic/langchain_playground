@@ -131,6 +131,8 @@ export default [
       '@typescript-eslint/only-throw-error': 'warn',
       '@typescript-eslint/interface-name-prefix': 'off',
 
+      '@typescript-eslint/no-deprecated': 'error',
+
       // Naming Conventions (Simplified)
       '@typescript-eslint/naming-convention': [
         'warn',
