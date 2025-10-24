@@ -13,13 +13,13 @@ This is a LangChain playground repository for experimenting with LangChain featu
 - `yarn build` - Compile TypeScript to JavaScript (runs `tsc`)
 - `yarn start` - Build and run the application
 - `yarn dev` - Development mode with watch and auto-restart
-- `npx ts-node src/examples/[example-name]/index.ts` - Run a specific example directly
+- `npx ts-node src/examples/[example-name]/[example-name].ts` - Run a specific example directly
 
 ### Running Examples
 Each example in `src/examples/` can be run independently:
 ```bash
-npx ts-node src/examples/image-input/index.ts
-npx ts-node src/examples/tool-calling/index.ts
+npx ts-node src/examples/image-input/image-input.ts
+npx ts-node src/examples/tools/tool-calling/tool-calling.ts
 ```
 
 ## Environment Setup
@@ -32,7 +32,7 @@ Before running any code, ensure `.env` file exists with required credentials:
 ## Architecture
 
 ### Core Structure
-- **Examples** (`src/examples/`): Self-contained demonstrations of LangChain features. Each example should be runnable independently with its own `index.ts`.
+- **Examples** (`src/examples/`): Self-contained demonstrations of LangChain features. Each example should be runnable independently with its own TypeScript file named after the example directory.
 - **Playground** (`src/playground/`): Experimental utilities for PDF processing, content formatting, and other explorations.
 
 ### Key Dependencies
@@ -53,7 +53,7 @@ Before running any code, ensure `.env` file exists with required credentials:
 
 When adding new examples:
 1. Create a new directory under `src/examples/`
-2. Include a self-contained `index.ts` that demonstrates the feature
+2. Include a self-contained TypeScript file named after the directory (e.g., `my-example/my-example.ts`) that demonstrates the feature
 3. Ensure all required environment variables are documented
 
 When working with LLM providers:

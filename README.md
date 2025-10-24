@@ -5,7 +5,7 @@ This repository contains working examples of Langchain usage.
 ## Structure
 
 - `src/examples`: Contains standalone examples, each in its own directory.
-  - Each example directory has an `index.ts` file that can be run directly (e.g., using `ts-node src/examples/some-example/index.ts`).
+  - Each example directory has a TypeScript file named after the directory that can be run directly (e.g., using `ts-node src/examples/some-example/some-example.ts`).
 - `src/shared`: Contains shared utility code, like model configurations.
 - `assets`: Contains any assets (images, etc.) used by the examples.
 - `official_pages`: Contains markdown files with guides or documentation that the examples are based on.
@@ -62,11 +62,11 @@ const model = new ChatAnthropic({ model: "claude-3-opus-20240229" });
 Each example is self-contained and can be run independently:
 
 ```bash
-npx ts-node src/examples/[example-name]/index.ts
+npx ts-node src/examples/[example-name]/[example-name].ts
 ```
 
 For example, to run the image input example:
 
 ```bash
-npx ts-node src/examples/image-input/index.ts
+npx ts-node src/examples/image-input/image-input.ts
 ```

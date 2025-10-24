@@ -15,7 +15,7 @@
  */
 
 import { performance } from "perf_hooks";
-import { createReActAgent } from "../react_agent/index";
+import { createReActAgent } from "../react_agent/react_agent";
 import { MemorySaver } from "@langchain/langgraph";
 import dotenv from "dotenv";
 import { serialize } from "v8";
