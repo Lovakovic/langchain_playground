@@ -507,7 +507,7 @@ function createNewsSubgraph() {
 async function processInput(state: typeof ContentAnalysisState.State) {
   console.log("\n🔍 Processing input query...");
   const lastMessage = state.messages[state.messages.length - 1];
-  const query = lastMessage.content as string;
+  const query = (lastMessage?.content ?? "") as string;
   
   return {
     query: query.toLowerCase().trim(),
@@ -535,7 +535,7 @@ async function processInput(state: typeof ContentAnalysisState.State) {
 async function aggregateResults(state: typeof ContentAnalysisState.State) {
   console.log("\n📊 Aggregating results from all sources...");
   
-  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if (!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error("GOOGLE_APPLICATION_CREDENTIALS not set");
   }
 

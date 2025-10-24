@@ -25,7 +25,7 @@ const progressiveValidationTool = new DynamicStructuredTool({
     })).describe('Array of user data to validate')
   }),
   func: async ({ users }, manager, config?: RunnableConfig<ValidationConfigurable>) => {
-    const state = config?.configurable?.validationState;
+    const state = config?.configurable?.['validationState'];
     const attempt = state?.currentAttempt || 1;
     
     console.log(`\n${'='.repeat(60)}`);
@@ -191,7 +191,7 @@ async function demonstrateProgressiveReduction() {
   }
 }
 
-async function showRetryMessages() {
+async function _showRetryMessages() {
   console.log('\n📝 RETRY MESSAGE STRUCTURE DEMONSTRATION\n');
   console.log('This shows the exact retry messages sent to the LLM.\n');
 
@@ -206,7 +206,7 @@ async function showRetryMessages() {
       }))
     }),
     func: async ({ items }, manager, config) => {
-      const state = config?.configurable?.validationState;
+      const _state = config?.configurable?.['validationState'];
       console.log(`\n📨 Received ${items.length} items: ${items.map(i => i.id).join(', ')}`);
       
       const validItems = [];

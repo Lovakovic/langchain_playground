@@ -110,7 +110,7 @@ const convertTypeToZod = (prop: JSONSchemaDraft7Property): ZodPropType => {
  */
 const handleEnumAndDescription = (prop: JSONSchemaDraft7Property, zodProp: ZodPropType): ZodPropType => {
   if (prop.enum) {
-    if (Array.isArray(prop.enum) && prop.enum.every((item): item is string => true) && prop.enum.length > 0) {
+    if (Array.isArray(prop.enum) && prop.enum.every((_item): _item is string => true) && prop.enum.length > 0) {
       zodProp = z.enum(prop.enum as [string, ...string[]]).describe(prop.description ?? '');
     } else {
       throw new Error('Enum values must be an array of strings with at least one element');

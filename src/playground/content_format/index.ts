@@ -6,20 +6,20 @@ import {ChatAnthropic} from "@langchain/anthropic";
 
 dotenv.config();
 
-if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+if(!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
   throw new Error(
     "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
     "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
   );
 }
 
-if(!process.env.OPENAI_API_KEY) {
+if(!process.env['OPENAI_API_KEY']) {
   throw new Error(
     "OPENAI_API_KEY environment variable is not set. "
   );
 }
 
-if(!process.env.ANTHROPIC_API_KEY) {
+if(!process.env['ANTHROPIC_API_KEY']) {
   throw new Error(
     "ANTHROPIC_API_KEY environment variable is not set. "
   );

@@ -19,27 +19,27 @@ async function runNestedTracingDemo() {
   const tracer = new NestedTracer(eventEmitter, menuId);
 
   // Set up real-time event logging
-  eventEmitter.on('processingEvent', (menuId: string, event: any) => {
+  eventEmitter.on('processingEvent', (_menuId: string, event: any) => {
     const levelIndent = '  '.repeat(event.graphLevel || 0);
-    const nodeInfo = event.parentNodeName ? 
+    const _nodeInfo = event.parentNodeName ? 
       `${event.parentNodeName} -> ${event.nodeName}` : 
       event.nodeName;
     
     console.log(`${levelIndent}[${event.type}] ${event.phase}: ${event.message}`);
     
     if (event.type === 'tool:end') {
-      console.log(`${levelIndent}  🔧 Tool: ${event.metadata?.toolName}`);
-      console.log(`${levelIndent}  📍 Node: ${event.metadata?.currentNode}`);
-      console.log(`${levelIndent}  🏗️  Master: ${event.metadata?.masterGraphNode}`);
-      console.log(`${levelIndent}  🔗 Subgraph: ${event.metadata?.subgraphNode || 'direct'}`);
+      console.log(`${levelIndent}  🔧 Tool: ${event.metadata?.['toolName']}`);
+      console.log(`${levelIndent}  📍 Node: ${event.metadata?.['currentNode']}`);
+      console.log(`${levelIndent}  🏗️  Master: ${event.metadata?.['masterGraphNode']}`);
+      console.log(`${levelIndent}  🔗 Subgraph: ${event.metadata?.['subgraphNode'] || 'direct'}`);
       console.log(`${levelIndent}  📊 Path: ${event.executionPath?.join(' -> ')}`);
     }
     
     if (event.type === 'custom:event') {
-      console.log(`${levelIndent}  📢 Custom Event: ${event.metadata?.eventName}`);
-      console.log(`${levelIndent}  📍 Node: ${event.metadata?.currentNode}`);
-      console.log(`${levelIndent}  🏗️  Master: ${event.metadata?.masterGraphNode}`);
-      console.log(`${levelIndent}  🔗 Subgraph: ${event.metadata?.subgraphNode || 'direct'}`);
+      console.log(`${levelIndent}  📢 Custom Event: ${event.metadata?.['eventName']}`);
+      console.log(`${levelIndent}  📍 Node: ${event.metadata?.['currentNode']}`);
+      console.log(`${levelIndent}  🏗️  Master: ${event.metadata?.['masterGraphNode']}`);
+      console.log(`${levelIndent}  🔗 Subgraph: ${event.metadata?.['subgraphNode'] || 'direct'}`);
       console.log(`${levelIndent}  📊 Path: ${event.executionPath?.join(' -> ')}`);
       
       // Show interesting custom event data
@@ -133,14 +133,14 @@ Beer contains: Gluten
     const toolCallEvents = tracer.getToolCallEvents();
     
     toolCallEvents.forEach((event, index) => {
-      console.log(`\n${index + 1}. Tool Call: ${event.metadata?.toolName}`);
-      console.log(`   ├─ Executed in node: ${event.metadata?.currentNode}`);
-      console.log(`   ├─ Master graph node: ${event.metadata?.masterGraphNode}`);
-      console.log(`   ├─ Subgraph node: ${event.metadata?.subgraphNode || 'N/A (direct execution)'}`);
+      console.log(`\n${index + 1}. Tool Call: ${event.metadata?.['toolName']}`);
+      console.log(`   ├─ Executed in node: ${event.metadata?.['currentNode']}`);
+      console.log(`   ├─ Master graph node: ${event.metadata?.['masterGraphNode']}`);
+      console.log(`   ├─ Subgraph node: ${event.metadata?.['subgraphNode'] || 'N/A (direct execution)'}`);
       console.log(`   ├─ Graph level: ${event.graphLevel}`);
       console.log(`   ├─ Execution path: ${event.executionPath?.join(' -> ')}`);
-      console.log(`   ├─ Model: ${event.metadata?.modelName}`);
-      console.log(`   └─ Tool ID: ${event.metadata?.toolCallId}`);
+      console.log(`   ├─ Model: ${event.metadata?.['modelName']}`);
+      console.log(`   └─ Tool ID: ${event.metadata?.['toolCallId']}`);
     });
 
     // Custom events analysis
@@ -150,7 +150,7 @@ Beer contains: Gluten
     if (customEvents.length > 0) {
       // Group custom events by type for analysis
       const eventsByType = customEvents.reduce((acc, event) => {
-        const eventName = event.metadata?.eventName || 'unknown';
+        const eventName = event.metadata?.['eventName'] || 'unknown';
         if (!acc[eventName]) acc[eventName] = [];
         acc[eventName].push(event);
         return acc;
@@ -178,26 +178,26 @@ Beer contains: Gluten
       console.log('\n⏱️  BUSINESS EVENT TIMELINE:');
       const businessEvents = customEvents.filter(event => 
         ['analysis_started', 'analysis_completed', 'enrichment_started', 'enrichment_completed', 'subgraph_entered', 'subgraph_exited']
-          .includes(event.metadata?.eventName || '')
+          .includes(event.metadata?.['eventName'] || '')
       ).sort((a, b) => a.timestamp - b.timestamp);
 
       businessEvents.forEach((event, index) => {
         const timeOffset = index === 0 ? '0ms' : `+${event.timestamp - businessEvents[0].timestamp}ms`;
         const indent = '  '.repeat(event.graphLevel || 0);
-        console.log(`${indent}${timeOffset} - ${event.metadata?.eventName} (${event.executionPath?.join(' -> ') || 'unknown'})`);
+        console.log(`${indent}${timeOffset} - ${event.metadata?.['eventName']} (${event.executionPath?.join(' -> ') || 'unknown'})`);
       });
 
       // Performance insights from custom events
       console.log('\n⚡ PERFORMANCE INSIGHTS FROM CUSTOM EVENTS:');
       const performanceEvents = customEvents.filter(event => 
-        event.metadata?.performanceMetrics || event.metadata?.duration
+        event.metadata?.['performanceMetrics'] || event.metadata?.duration
       );
 
       if (performanceEvents.length > 0) {
         performanceEvents.forEach(event => {
-          const metrics = event.metadata?.performanceMetrics;
+          const metrics = event.metadata?.['performanceMetrics'];
           const duration = event.metadata?.duration;
-          const node = event.metadata?.currentNode || event.nodeName;
+          const node = event.metadata?.['currentNode'] || event.nodeName;
           
           if (metrics) {
             console.log(`   ${node}:`);
@@ -214,12 +214,12 @@ Beer contains: Gluten
       // Error analysis from custom events
       console.log('\n🚨 ERROR ANALYSIS FROM CUSTOM EVENTS:');
       const errorEvents = customEvents.filter(event => 
-        event.metadata?.eventName === 'validation_failed' || event.metadata?.error
+        event.metadata?.['eventName'] === 'validation_failed' || event.metadata?.['error']
       );
 
       if (errorEvents.length > 0) {
         errorEvents.forEach(event => {
-          console.log(`   ❌ ${event.metadata?.error || 'Unknown error'}`);
+          console.log(`   ❌ ${event.metadata?.['error'] || 'Unknown error'}`);
           console.log(`      └─ Location: ${event.executionPath?.join(' -> ') || 'unknown'}`);
         });
       } else {
@@ -236,7 +236,7 @@ Beer contains: Gluten
     phases.forEach(phase => {
       const phaseEvents = tracer.getEventsByPhase(phase);
       const startEvents = phaseEvents.filter(e => e.type === 'phase:start');
-      const endEvents = phaseEvents.filter(e => e.type === 'phase:end');
+      const _endEvents = phaseEvents.filter(e => e.type === 'phase:end');
       const toolEvents = phaseEvents.filter(e => e.type === 'tool:end');
       
       if (startEvents.length > 0) {

@@ -36,7 +36,7 @@
  */
 
 import { z } from 'zod';
-import { StateGraph, Annotation, CompiledStateGraph, StateDefinition, MessagesAnnotation } from '@langchain/langgraph';
+import { StateGraph, Annotation, _CompiledStateGraph, _StateDefinition, MessagesAnnotation } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { tool } from '@langchain/core/tools';
@@ -139,7 +139,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
    * 2. Filters out internal LangGraph machinery (ChannelWrite, etc.)
    * 3. Initializes metrics tracking for legitimate nodes
    */
-  onChainStart(run: Run): void {
+  override onChainStart(run: Run): void {
     // The root run (entire graph) has no parent
     if (run.parent_run_id === undefined) {
       this.graphStartTime = run.start_time;
@@ -171,7 +171,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
    * Calculates the duration of the node execution and updates
    * the graph end time if this was the root node
    */
-  onChainEnd(run: Run): void {
+  override onChainEnd(run: Run): void {
     // Track graph completion
     if (run.parent_run_id === undefined) {
       this.graphEndTime = run.end_time ?? Date.now();
@@ -195,7 +195,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
    * 
    * We store the model name in run.extra for retrieval in onLLMEnd
    */
-  onLLMStart(run: Run): void {
+  override onLLMStart(run: Run): void {
     let modelName: string | undefined;
     
     // Try serialized.kwargs.model (most reliable for most providers)
@@ -229,7 +229,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
    * 3. Updates global and per-model statistics
    * 4. Attributes tokens to the parent node using the run hierarchy
    */
-  onLLMEnd(run: Run): void {
+  override onLLMEnd(run: Run): void {
     // ===== Step 1: Get Model Name =====
     let modelName = run.extra?.modelName;
     
@@ -540,7 +540,7 @@ const researchTool = tool(
  * 3. Processes the research query and returns findings
  */
 async function researchWithOpenAI(state: typeof ResearchState.State, config?: RunnableConfig) {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env['OPENAI_API_KEY']) {
     throw new Error("OPENAI_API_KEY environment variable is not set");
   }
 
@@ -552,7 +552,7 @@ async function researchWithOpenAI(state: typeof ResearchState.State, config?: Ru
 
   // Extract the research query from the last message
   const lastMessage = state.messages[state.messages.length - 1];
-  const prompt = `You are a research assistant using OpenAI. The user needs research on: ${lastMessage.content}. 
+  const prompt = `You are a research assistant using OpenAI. The user needs research on: ${lastMessage?.content}. 
   Use the deep_research tool to gather comprehensive information.`;
 
   // Invoke the model (token usage will be tracked by our tracer)
@@ -569,7 +569,7 @@ async function researchWithOpenAI(state: typeof ResearchState.State, config?: Ru
 function shouldContinueResearch(state: typeof ResearchState.State) {
   const lastMessage = state.messages[state.messages.length - 1];
   
-  if ("tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+  if (lastMessage && "tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
     return "tools";
   }
   
@@ -620,7 +620,7 @@ const planner_node = async (state: typeof GraphState.State, config?: RunnableCon
   }).withStructuredOutput(PlanSchema);
 
   const prompt = `Analyze the user's request and create a plan. Determine if deep research is needed before answering.
-  User Request: ${state.messages[state.messages.length - 1].content}`;
+  User Request: ${state.messages[state.messages.length - 1]?.content}`;
 
   // Invoke the model (token usage tracked by our tracer)
   const result = await model.invoke(prompt, config);
@@ -654,7 +654,7 @@ async function research_node(state: typeof GraphState.State, config?: RunnableCo
   // Create and invoke the subgraph
   const researchSubgraph = createResearchSubgraph();
   const lastMessage = state.messages[state.messages.length - 1];
-  const query = typeof lastMessage.content === 'string' ? lastMessage.content : 'Research query';
+  const query = typeof lastMessage?.content === 'string' ? lastMessage.content : 'Research query';
   
   // The subgraph will use its own state but inherit our config (including tracer)
   const result = await researchSubgraph.invoke(
@@ -690,7 +690,7 @@ const toolNodeWithOutput = async (state: typeof GraphState.State, config?: Runna
   
   // Extract search query from the original user message
   const firstMessage = state.messages[0];
-  const searchQuery = typeof firstMessage.content === 'string' ? firstMessage.content : 'general search';
+  const searchQuery = typeof firstMessage?.content === 'string' ? firstMessage.content : 'general search';
   
   // Create a tool call message
   const toolCallMessage = new AIMessage({
@@ -736,7 +736,7 @@ const summarizer_node = async (state: typeof GraphState.State, config?: Runnable
 
   // Extract original request
   const firstMessage = state.messages[0];
-  const originalRequest = typeof firstMessage.content === 'string' ? firstMessage.content : 'User request';
+  const originalRequest = typeof firstMessage?.content === 'string' ? firstMessage.content : 'User request';
   
   // Compile all gathered information
   const prompt = `Generate a comprehensive answer based on:
@@ -818,7 +818,7 @@ async function main() {
   });
 
   console.log('\n✅ Graph execution finished.');
-  console.log('Final Answer:', result.messages.slice(-1)[0].content);
+  console.log('Final Answer:', result.messages.slice(-1)[0]?.content);
 
   // Display comprehensive metrics
   metricsTracer.logMetrics();

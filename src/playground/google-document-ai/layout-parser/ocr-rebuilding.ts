@@ -11,7 +11,7 @@ import { fromBuffer } from 'pdf2pic';
 import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore
 import { DocumentAIProcessor, formatTextWithPageDelimiters, processDocumentByPages, type DocumentTextResult } from './index.ts';
-import type { MessageContentComplex } from '@langchain/core/messages';
+import type { _MessageContentComplex } from '@langchain/core/messages';
 
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
@@ -96,7 +96,7 @@ Now, process the entire document provided and return a single, structured Markdo
  */
 class OCRRebuilder {
   private model: ChatVertexAI;
-  private documentProcessor: DocumentAIProcessor;
+  private : DocumentAIProcessor;
   private readonly targetPixelWidth = 2400;
   private readonly minDpi = 150;
   private readonly maxDpi = 300;
@@ -274,9 +274,9 @@ class OCRRebuilder {
       console.log('🚀 Calling Google Document AI...');
       const docAIStartTime = Date.now();
       
-      const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID!;
-      const location = process.env.DOCUMENT_AI_LOCATION!;
-      const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID!;
+      const processorId = process.env['DOCUMENT_AI_PROCESSOR_ID']!;
+      const location = process.env['DOCUMENT_AI_LOCATION']!;
+      const projectId = process.env['GOOGLE_CLOUD_PROJECT_ID']!;
 
       if (!processorId || !location || !projectId) {
         throw new Error(

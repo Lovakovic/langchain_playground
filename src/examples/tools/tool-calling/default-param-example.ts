@@ -44,7 +44,7 @@ const createDocument = tool(
 );
 
 const main = async () => {
-  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if (!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
       "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
       "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
@@ -74,18 +74,18 @@ const main = async () => {
     // IMPORTANT: Notice that toolCall.args does NOT contain the 'metadata' parameter
     // even though it has a default value in the schema. The LLM doesn't include it.
     console.log("\nTool call args received by the model:");
-    console.log(JSON.stringify(toolCall.args, null, 2));
+    console.log(JSON.stringify(toolCall?.args, null, 2));
     
-    if (toolCall.name === "create_document") {
+    if (toolCall && toolCall.name === "create_document") {
       try {
         // When we invoke the tool, LangChain applies the default value
         // The tool function receives metadata: "default-metadata" even though
         // it wasn't in toolCall.args
-        const toolResult = await createDocument.invoke(toolCall.args as any);
+        const toolResult = await createDocument.invoke(toolCall!.args as any);
 
         const toolMessage = new ToolMessage({
           content: toolResult.toString(),
-          tool_call_id: toolCall.id ?? "invalid_tool_call_id",
+          tool_call_id: toolCall!.id ?? "invalid_tool_call_id",
         });
 
         // Second call to the model, including the tool result
@@ -99,7 +99,7 @@ const main = async () => {
         console.log(finalResponse.content);
 
       } catch (error) {
-        console.error(`Error executing tool ${toolCall.name}:`, error);
+        console.error(`Error executing tool ${toolCall!.name}:`, error);
       }
     }
   } else {

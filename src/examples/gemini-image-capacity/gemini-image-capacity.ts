@@ -23,7 +23,7 @@ const NUMBER_OF_IMAGES = 20; // Adjust this constant to test different numbers
 async function testGeminiWithMultipleImages() {
   console.log(`Testing Gemini with ${NUMBER_OF_IMAGES} cat images...\n`);
   
-  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if(!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
       "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
       "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."

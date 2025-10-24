@@ -7,8 +7,8 @@
  * Run with: node --expose-gc -r ts-node/register src/examples/state-memory-management/memory-demo.ts
  */
 
-import { Annotation, MemorySaver, StateGraph } from "@langchain/langgraph";
-import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { Annotation, _MemorySaver, StateGraph } from "@langchain/langgraph";
+import { AIMessage, BaseMessage, _HumanMessage } from "@langchain/core/messages";
 import dotenv from "dotenv";
 import { randomBytes } from "crypto";
 
@@ -62,7 +62,7 @@ async function unmanagedPipeline() {
   console.log("=".repeat(50));
   
   const workflow = new StateGraph(UnmanagedState)
-    .addNode("process", async (state) => {
+    .addNode("process", async (_state) => {
       const data = generateLargeData(50);
       return {
         allData: [data],
@@ -138,7 +138,7 @@ async function windowManagedPipeline() {
   console.log("=".repeat(50));
   
   const workflow = new StateGraph(WindowManagedState)
-    .addNode("process", async (state) => {
+    .addNode("process", async (_state) => {
       const data = generateLargeData(50);
       const sizeMB = data.length / 1024 / 1024;
       
@@ -192,7 +192,7 @@ async function stageCleanupPipeline() {
   console.log("=".repeat(50));
   
   const workflow = new StateGraph(StageCleanupState)
-    .addNode("generate", async (state) => {
+    .addNode("generate", async (_state) => {
       console.log("\n🔵 Stage: Generate");
       logMemoryUsage("Before generate");
       
@@ -218,7 +218,7 @@ async function stageCleanupPipeline() {
       };
     })
     
-    .addNode("cleanup", async (state) => {
+    .addNode("cleanup", async (_state) => {
       console.log("\n🧹 Stage: Cleanup");
       logMemoryUsage("Before cleanup");
       
@@ -238,7 +238,7 @@ async function stageCleanupPipeline() {
     .addEdge("__start__", "generate")
     .addConditionalEdges("generate", (state) => state.stage)
     .addConditionalEdges("process", (state) => state.stage)
-    .addConditionalEdges("cleanup", (state) => "__end__")
+    .addConditionalEdges("cleanup", (_state) => "__end__")
     .compile();
   
   const result = await workflow.invoke({
@@ -302,7 +302,6 @@ async function streamingPipeline() {
     console.log(`Processing chunk ${index + 1}`);
     
     // Process chunk
-    const chunkSize = chunk.length / 1024 / 1024;
     state = await workflow.invoke(state);
     
     // Chunk goes out of scope here and can be GC'd

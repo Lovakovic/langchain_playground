@@ -107,7 +107,7 @@ export class NestedTracer extends BaseTracer {
   /**
    * Required by BaseTracer - we don't persist to storage, just emit events
    */
-  protected persistRun(_run: Run): Promise<void> {
+  protected override persistRun(_run: Run): Promise<void> {
     return Promise.resolve();
   }
 
@@ -249,7 +249,7 @@ export class NestedTracer extends BaseTracer {
    * - Error conditions: "validation_failed", "retry_attempted"
    * - Performance metrics: "cache_hit", "api_timeout"
    */
-  async handleCustomEvent(
+  override async handleCustomEvent(
     eventName: string,
     data: any,
     runId: string,
@@ -304,7 +304,7 @@ export class NestedTracer extends BaseTracer {
    * This is where we track the node hierarchy and build our execution context.
    * For every user node that starts, we update our tracking structures.
    */
-  onChainStart(run: Run): void {
+  override onChainStart(run: Run): void {
     // Emit phase start event if this node has a defined phase
     const phaseInfo = nodeToPhaseMap[run.name];
     if (phaseInfo) {
@@ -321,7 +321,7 @@ export class NestedTracer extends BaseTracer {
    * 
    * This is where we emit completion events and clean up our tracking structures.
    */
-  onChainEnd(run: Run): void {
+  override onChainEnd(run: Run): void {
     const phaseInfo = nodeToPhaseMap[run.name];
     if (phaseInfo) {
       const duration = (run.end_time || Date.now()) - run.start_time;
@@ -347,7 +347,7 @@ export class NestedTracer extends BaseTracer {
   /**
    * Called when any LangChain component encounters an error
    */
-  onChainError(run: Run): void {
+  override onChainError(run: Run): void {
     const phaseInfo = nodeToPhaseMap[run.name] || { 
       phase: ProcessingPhase.FAILED, 
       message: 'An unknown error occurred' 
@@ -371,7 +371,7 @@ export class NestedTracer extends BaseTracer {
    * 
    * We capture the model name for later attribution.
    */
-  onLLMStart(run: Run): void {
+  override onLLMStart(run: Run): void {
     const serialized = run.serialized as any;
     if (serialized?.kwargs?.model) {
       run.extra = { ...run.extra, modelName: serialized.kwargs.model };
@@ -388,7 +388,7 @@ export class NestedTracer extends BaseTracer {
    * 2. Extract tool calls from the LLM response 
    * 3. Associate each tool call with complete execution context
    */
-  onLLMEnd(run: Run): void {
+  override onLLMEnd(run: Run): void {
     // === STEP 1: Track token usage ===
     const message = run.outputs?.generations?.[0]?.[0]?.message;
     const usageMetadata = message?.kwargs?.usage_metadata;

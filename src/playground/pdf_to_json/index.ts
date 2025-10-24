@@ -1,6 +1,6 @@
 // Node.js polyfills for pdfjs-dist
 global.DOMMatrix = class DOMMatrix {
-  constructor(init?: any) {
+  constructor(_init?: any) {
     // Basic implementation for pdfjs compatibility
   }
 } as any;

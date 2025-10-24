@@ -155,7 +155,7 @@ function calculatePasswordStrength(password: string): string {
  * it can reason about what went wrong and try again with corrected input.
  */
 async function callModel(state: typeof MessagesAnnotation.State) {
-  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if(!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
       "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
       "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
@@ -183,7 +183,7 @@ async function callModel(state: typeof MessagesAnnotation.State) {
 function shouldContinue(state: typeof MessagesAnnotation.State) {
   const lastMessage = state.messages[state.messages.length - 1];
   
-  if ("tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+  if (lastMessage && "tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
     return "tools";
   }
   

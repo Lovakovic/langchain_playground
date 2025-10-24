@@ -117,7 +117,7 @@ function buildRunTree(events: CustomEvent[]): Map<string, RunNode> {
   });
   
   // Identify remaining roots (nodes with no parents)
-  runMap.forEach((node, runId) => {
+  runMap.forEach((_node, runId) => {
     const hasParent = Array.from(runMap.values()).some(n => 
       n.children.some(child => child.runId === runId)
     );
@@ -349,7 +349,7 @@ if (require.main === module) {
     const providedFile = fileArgs[0];
     if (path.isAbsolute(providedFile)) {
       logFile = providedFile;
-    } else if (providedFile.includes('/')) {
+    } else if (providedFile?.includes('/')) {
       logFile = path.resolve(providedFile);
     } else {
       // Just filename, assume it's in logs directory

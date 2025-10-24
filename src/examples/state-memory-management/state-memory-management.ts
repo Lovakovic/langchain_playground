@@ -97,7 +97,7 @@ const memoryLimitedReducer = (maxItems: number) => {
  * - Intermediate computation results
  * - Any data with a clear lifecycle
  */
-const clearableReducer = (current: any, update: any) => {
+const clearableReducer = (_current: any, update: any) => {
   if (update === "CLEAR") {
     console.log("🧹 Clearing data from state");
     return null;
@@ -151,7 +151,7 @@ const SimplePipelineState = Annotation.Root({
   })
 });
 
-async function generateData(state: typeof SimplePipelineState.State) {
+async function generateData(_state: typeof SimplePipelineState.State) {
   console.log("\n📊 Generating large dataset...");
   logMemoryUsage("Before Generation");
   
@@ -195,7 +195,7 @@ async function processData(state: typeof SimplePipelineState.State) {
   };
 }
 
-async function cleanupData(state: typeof SimplePipelineState.State) {
+async function cleanupData(_state: typeof SimplePipelineState.State) {
   console.log("\n🧹 Cleaning up large data...");
   logMemoryUsage("Before Cleanup");
   
@@ -298,7 +298,7 @@ const Stage1OutputSchema = Annotation.Root({
   messages: Annotation<BaseMessage[]>
 });
 
-async function stage1Process(state: typeof Stage1InputSchema.State) {
+async function stage1Process(_state: typeof Stage1InputSchema.State) {
   console.log("\n🔵 Stage 1: Processing with limited state access");
   logMemoryUsage("Stage 1 Start");
   
@@ -390,7 +390,7 @@ export function createSegmentedPipeline() {
   const stage2 = createStage2Subgraph();
   
   const workflow = new StateGraph(MasterState)
-    .addNode("init", async (state) => ({
+    .addNode("init", async (_state) => ({
       config: { chunkSize: 5 },
       messages: [new AIMessage("Starting segmented pipeline")]
     }))
@@ -507,7 +507,7 @@ async function processBatch(state: typeof BatchProcessingState.State) {
   
   // Process items (extract only essential data)
   let processed = 0;
-  for (const item of state.batchData) {
+  for (const _item of state.batchData) {
     // Simulate processing
     await new Promise(resolve => setTimeout(resolve, 10));
     processed++;

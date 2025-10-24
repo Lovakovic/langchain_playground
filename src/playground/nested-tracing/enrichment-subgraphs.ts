@@ -13,7 +13,7 @@ function createVertexAIModel(config: { model: string; temperature: number }) {
   });
 }
 import { CategoryEnrichmentState, AllergenEnrichmentState, TranslationEnrichmentState } from './states';
-import { MockMenuItem, CustomEventTypes } from './types';
+import { _MockMenuItem, CustomEventTypes } from './types';
 import { createCategoryEnrichmentTool, createAllergenAnalysisTool, createTranslationTool } from './tools';
 
 // Category Enrichment Subgraph

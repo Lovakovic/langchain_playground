@@ -89,7 +89,7 @@ const saveUserInfoTool = tool(
       return "Error: Memory store not available";
     }
 
-    const userId = config.configurable?.userId;
+    const userId = config.configurable?.['userId'];
     if (!userId) {
       return "Error: User ID not configured";
     }
@@ -159,7 +159,7 @@ async function callModelWithMemory(
   config: LangGraphRunnableConfig
 ) {
   const store = config.store;
-  const userId = config.configurable?.userId;
+  const userId = config.configurable?.['userId'];
   
   // Initialize system prompt
   let systemPrompt = "You are a helpful assistant with memory capabilities. ";
@@ -196,7 +196,7 @@ async function callModelWithMemory(
     "use the save_user_info tool to remember it for future conversations. " +
     "Use natural conversation - don't explicitly mention that you're saving information unless asked.";
 
-  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if(!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
       "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
       "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
@@ -237,7 +237,7 @@ async function callModelWithMemory(
 function shouldContinue(state: typeof MessagesAnnotation.State) {
   const lastMessage = state.messages[state.messages.length - 1];
   
-  if ("tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+  if (lastMessage && "tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
     return "tools";
   }
   
@@ -318,7 +318,6 @@ async function runWithStreaming(
   let fullResponse = "";
   let firstChunk = true;
   let memorySaved = false;
-  let toolCallHappened = false;
   
   for await (const event of eventStream) {
     // Debug to see what events we're getting
@@ -409,7 +408,7 @@ async function main() {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: `\n💬 [${sessions[currentSessionIndex].name}] You: `
+    prompt: `\n💬 [${sessions[currentSessionIndex]?.name}] You: `
   });
 
   console.log("🤖 Assistant: Hello! I'm your personal assistant with persistent memory. I can remember information about you across all our conversations. Feel free to tell me about yourself!");
@@ -434,9 +433,9 @@ async function main() {
         created: new Date()
       });
       currentSessionIndex = sessions.length - 1;
-      console.log(`\n✨ Started new session: ${sessions[currentSessionIndex].name}`);
+      console.log(`\n✨ Started new session: ${sessions[currentSessionIndex]?.name}`);
       console.log("🤖 Assistant: I'm ready for our new conversation! I still remember everything about you from before.");
-      rl.setPrompt(`\n💬 [${sessions[currentSessionIndex].name}] You: `);
+      rl.setPrompt(`\n💬 [${sessions[currentSessionIndex]?.name}] You: `);
       rl.prompt();
       return;
     }
@@ -455,8 +454,8 @@ async function main() {
       const sessionNum = parseInt(userInput.substring(8)) - 1;
       if (sessionNum >= 0 && sessionNum < sessions.length) {
         currentSessionIndex = sessionNum;
-        console.log(`\n🔄 Switched to ${sessions[currentSessionIndex].name}`);
-        rl.setPrompt(`\n💬 [${sessions[currentSessionIndex].name}] You: `);
+        console.log(`\n🔄 Switched to ${sessions[currentSessionIndex]?.name}`);
+        rl.setPrompt(`\n💬 [${sessions[currentSessionIndex]?.name}] You: `);
       } else {
         console.log("\n❌ Invalid session number");
       }
@@ -496,7 +495,7 @@ async function main() {
       // Run with both thread_id (for conversation history) and userId (for cross-thread memory)
       const config = {
         configurable: {
-          thread_id: sessions[currentSessionIndex].id,
+          thread_id: sessions[currentSessionIndex]?.id,
           userId: userId
         }
       };

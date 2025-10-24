@@ -19,7 +19,7 @@ import { createReActAgent } from "../react_agent/react_agent";
 import { MemorySaver } from "@langchain/langgraph";
 import dotenv from "dotenv";
 import { serialize } from "v8";
-import * as util from "util";
+import * as _util from "_util";
 
 dotenv.config();
 
@@ -252,7 +252,7 @@ async function runParallelBenchmark(count: number = 100, withCheckpointer: boole
   const avgGraphSize = totalGraphSize / count;
 
   // Get detailed size info from first graph
-  const firstGraphSize = results[0].graphSize;
+  const firstGraphSize = results[0]?.graphSize;
 
   console.log(`\n⏱️  Total Time (Parallel): ${totalTime.toFixed(2)} ms`);
   console.log(`   Average per graph: ${(totalTime / count).toFixed(2)} ms`);

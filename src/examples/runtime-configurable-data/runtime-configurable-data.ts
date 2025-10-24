@@ -73,7 +73,7 @@ class DatabaseProvider {
 
 // External API client with authentication
 class ExternalAPIClient {
-  private apiKey: string;
+  private : string;
   private requestCount: number = 0;
 
   constructor(apiKey: string) {
@@ -223,7 +223,7 @@ function shouldContinue(
 ) {
   const lastMessage = state.messages[state.messages.length - 1];
 
-  if ("tool_calls" in lastMessage &&
+  if (lastMessage && "tool_calls" in lastMessage &&
     Array.isArray(lastMessage.tool_calls) &&
     lastMessage.tool_calls.length > 0) {
     // Only log routing decisions when actually routing to tools

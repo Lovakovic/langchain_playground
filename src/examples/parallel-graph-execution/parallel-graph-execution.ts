@@ -162,7 +162,7 @@ function createTimelineEntry(node: string, branch: string, message: string) {
 /**
  * Start Pipeline Node
  */
-async function startPipeline(state: typeof PipelineState.State) {
+async function startPipeline(_state: typeof PipelineState.State) {
   const startTime = Date.now();
   
   // Simulate input data
@@ -214,10 +214,10 @@ async function quickValidate(state: typeof PipelineState.State) {
   await new Promise(resolve => setTimeout(resolve, 300));
   
   const issues: string[] = [];
-  if (state.inputData.amount > 1000) {
+  if (state.inputData['amount'] > 1000) {
     issues.push("High value transaction requires additional review");
   }
-  if (!state.inputData.userId) {
+  if (!state.inputData['userId']) {
     issues.push("Missing user ID");
   }
   
@@ -246,7 +246,7 @@ async function quickValidate(state: typeof PipelineState.State) {
  * BRANCH 2: Data Processing Pipeline (3 nodes)
  * This will complete second and trigger the SECOND aggregation
  */
-async function processStep1(state: typeof PipelineState.State) {
+async function processStep1(_state: typeof PipelineState.State) {
   console.log("🔄 [PROCESS] Step 1/3: Data normalization...");
   await new Promise(resolve => setTimeout(resolve, 400));
   
@@ -257,7 +257,7 @@ async function processStep1(state: typeof PipelineState.State) {
   };
 }
 
-async function processStep2(state: typeof PipelineState.State) {
+async function processStep2(_state: typeof PipelineState.State) {
   console.log("🔄 [PROCESS] Step 2/3: Transformation...");
   await new Promise(resolve => setTimeout(resolve, 400));
   
@@ -276,8 +276,8 @@ async function processStep3(state: typeof PipelineState.State) {
   const transformedData = {
     ...state.inputData,
     processed: true,
-    normalizedAmount: state.inputData.amount / 100,
-    itemCount: state.inputData.items.length
+    normalizedAmount: state.inputData['amount'] / 100,
+    itemCount: state.inputData['items'].length
   };
   
   console.log("✅ [PROCESS] Data processing complete");
@@ -304,7 +304,7 @@ async function processStep3(state: typeof PipelineState.State) {
  * BRANCH 3: Quality Assurance (5 nodes)
  * This will complete last and trigger the FINAL aggregation
  */
-async function qaStep1(state: typeof PipelineState.State) {
+async function qaStep1(_state: typeof PipelineState.State) {
   console.log("🔍 [QA] Step 1/5: Schema validation...");
   await new Promise(resolve => setTimeout(resolve, 200));
   
@@ -315,7 +315,7 @@ async function qaStep1(state: typeof PipelineState.State) {
   };
 }
 
-async function qaStep2(state: typeof PipelineState.State) {
+async function qaStep2(_state: typeof PipelineState.State) {
   console.log("🔍 [QA] Step 2/5: Business rules check...");
   await new Promise(resolve => setTimeout(resolve, 200));
   
@@ -326,7 +326,7 @@ async function qaStep2(state: typeof PipelineState.State) {
   };
 }
 
-async function qaStep3(state: typeof PipelineState.State) {
+async function qaStep3(_state: typeof PipelineState.State) {
   console.log("🔍 [QA] Step 3/5: Data integrity check...");
   await new Promise(resolve => setTimeout(resolve, 200));
   
@@ -337,7 +337,7 @@ async function qaStep3(state: typeof PipelineState.State) {
   };
 }
 
-async function qaStep4(state: typeof PipelineState.State) {
+async function qaStep4(_state: typeof PipelineState.State) {
   console.log("🔍 [QA] Step 4/5: Security scan...");
   await new Promise(resolve => setTimeout(resolve, 200));
   
@@ -348,7 +348,7 @@ async function qaStep4(state: typeof PipelineState.State) {
   };
 }
 
-async function qaStep5(state: typeof PipelineState.State) {
+async function qaStep5(_state: typeof PipelineState.State) {
   const branchStart = Date.now() - 800; // Account for previous steps
   console.log("🔍 [QA] Step 5/5: Final QA report...");
   await new Promise(resolve => setTimeout(resolve, 200));

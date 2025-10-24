@@ -179,7 +179,7 @@ async function example1_basicTimeout() {
 
   try {
     // Using AbortSignal.timeout() - the simplest approach
-    const result = await graph.invoke(
+    await graph.invoke(
       { messages: [new HumanMessage("Start processing")] },
       {
         configurable: { thread_id: threadId },
@@ -228,7 +228,7 @@ async function example2_manualTimeout() {
   }, timeoutMs);
 
   try {
-    const result = await graph.invoke(
+    await graph.invoke(
       { messages: [new HumanMessage("Start processing")] },
       {
         configurable: { thread_id: threadId },
@@ -325,7 +325,7 @@ async function example4_progressiveTimeout() {
     const startTime = Date.now();
 
     try {
-      const result = await graph.invoke(
+      await graph.invoke(
         { messages: [new HumanMessage("Start processing")] },
         {
           configurable: { thread_id: threadId },
@@ -390,7 +390,7 @@ async function example5_userCancellableWithTimeout() {
       timeoutSignal
     ]);
 
-    const result = await graph.invoke(
+    await graph.invoke(
       { messages: [new HumanMessage("Start processing")] },
       {
         configurable: { thread_id: threadId },
@@ -434,7 +434,6 @@ async function example6_resourceBasedCancellation() {
   const checkInterval = 500; // Check every 500ms
 
   // Monitor resource usage
-  let lastResourceCheck = 0;
   const resourceMonitor = setInterval(async () => {
     try {
       const state = await graph.getState({
@@ -582,7 +581,7 @@ class TimeoutManager {
   }
 
   cancelAll() {
-    for (const [id, operation] of this.activeOperations) {
+    for (const [_id, operation] of this.activeOperations) {
       operation.controller.abort(new Error("All operations cancelled"));
     }
     this.activeOperations.clear();
@@ -612,7 +611,7 @@ async function example8_timeoutManager() {
   console.log("Expected: Clean timeout handling with automatic cleanup\n");
 
   try {
-    const result = await manager.runWithTimeout(
+    await manager.runWithTimeout(
       async (signal) => {
         return await graph.invoke(
           { messages: [new HumanMessage("Start processing")] },

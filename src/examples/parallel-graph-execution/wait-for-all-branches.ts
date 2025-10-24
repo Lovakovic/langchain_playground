@@ -65,7 +65,7 @@ import {
   StateGraph 
 } from "@langchain/langgraph";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
-import { ChatVertexAI } from "@langchain/google-vertexai";
+import { _ChatVertexAI } from "@langchain/google-vertexai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -164,7 +164,7 @@ function createTimelineEntry(node: string, branch: string, message: string) {
 /**
  * Start Pipeline Node
  */
-async function startPipeline(state: typeof PipelineState.State) {
+async function startPipeline(_state: typeof PipelineState.State) {
   const startTime = Date.now();
   
   const inputData = {
@@ -209,7 +209,7 @@ async function quickValidate(state: typeof PipelineState.State) {
   await new Promise(resolve => setTimeout(resolve, 300));
   
   const issues: string[] = [];
-  if (state.inputData.amount > 1000) {
+  if (state.inputData['amount'] > 1000) {
     issues.push("High value transaction");
   }
   
@@ -236,7 +236,7 @@ async function quickValidate(state: typeof PipelineState.State) {
 /**
  * BRANCH 2: Data Processing (3 nodes)
  */
-async function processStep1(state: typeof PipelineState.State) {
+async function processStep1(_state: typeof PipelineState.State) {
   console.log("🔄 [PROCESS] Step 1/3: Data normalization...");
   await new Promise(resolve => setTimeout(resolve, 400));
   
@@ -247,7 +247,7 @@ async function processStep1(state: typeof PipelineState.State) {
   };
 }
 
-async function processStep2(state: typeof PipelineState.State) {
+async function processStep2(_state: typeof PipelineState.State) {
   console.log("🔄 [PROCESS] Step 2/3: Transformation...");
   await new Promise(resolve => setTimeout(resolve, 400));
   
@@ -286,7 +286,7 @@ async function processStep3(state: typeof PipelineState.State) {
 /**
  * BRANCH 3: Quality Assurance (5 nodes)
  */
-async function qaStep1(state: typeof PipelineState.State) {
+async function qaStep1(_state: typeof PipelineState.State) {
   console.log("🔍 [QA] Step 1/5: Schema validation...");
   await new Promise(resolve => setTimeout(resolve, 200));
   return {
@@ -296,7 +296,7 @@ async function qaStep1(state: typeof PipelineState.State) {
   };
 }
 
-async function qaStep2(state: typeof PipelineState.State) {
+async function qaStep2(_state: typeof PipelineState.State) {
   console.log("🔍 [QA] Step 2/5: Business rules...");
   await new Promise(resolve => setTimeout(resolve, 200));
   return {
@@ -306,7 +306,7 @@ async function qaStep2(state: typeof PipelineState.State) {
   };
 }
 
-async function qaStep3(state: typeof PipelineState.State) {
+async function qaStep3(_state: typeof PipelineState.State) {
   console.log("🔍 [QA] Step 3/5: Data integrity...");
   await new Promise(resolve => setTimeout(resolve, 200));
   return {
@@ -316,7 +316,7 @@ async function qaStep3(state: typeof PipelineState.State) {
   };
 }
 
-async function qaStep4(state: typeof PipelineState.State) {
+async function qaStep4(_state: typeof PipelineState.State) {
   console.log("🔍 [QA] Step 4/5: Security scan...");
   await new Promise(resolve => setTimeout(resolve, 200));
   return {
@@ -326,7 +326,7 @@ async function qaStep4(state: typeof PipelineState.State) {
   };
 }
 
-async function qaStep5(state: typeof PipelineState.State) {
+async function qaStep5(_state: typeof PipelineState.State) {
   const branchStart = Date.now() - 800;
   console.log("🔍 [QA] Step 5/5: Final report...");
   await new Promise(resolve => setTimeout(resolve, 200));
@@ -363,7 +363,7 @@ async function qaStep5(state: typeof PipelineState.State) {
 /**
  * BRANCH 4: External Integration (3 nodes for this example)
  */
-async function externalStep1(state: typeof PipelineState.State) {
+async function externalStep1(_state: typeof PipelineState.State) {
   console.log(`🌐 [EXTERNAL] Step 1/3: Auth check...`);
   await new Promise(resolve => setTimeout(resolve, 500));
   return {
@@ -373,7 +373,7 @@ async function externalStep1(state: typeof PipelineState.State) {
   };
 }
 
-async function externalStep2(state: typeof PipelineState.State) {
+async function externalStep2(_state: typeof PipelineState.State) {
   console.log(`🌐 [EXTERNAL] Step 2/3: Primary API...`);
   await new Promise(resolve => setTimeout(resolve, 500));
   return {
@@ -383,7 +383,7 @@ async function externalStep2(state: typeof PipelineState.State) {
   };
 }
 
-async function externalStep3(state: typeof PipelineState.State) {
+async function externalStep3(_state: typeof PipelineState.State) {
   const branchStart = Date.now() - 1000;
   console.log(`🌐 [EXTERNAL] Step 3/3: Secondary API...`);
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -447,10 +447,10 @@ Branch Results:
 - Quality Assurance: ${state.qualityAssuranceResult.qaScore}% score
 
 Branch Completion Times:
-- Quick: ${(state.branchCompletionTimes.quick / 1000).toFixed(2)}s
-- Process: ${(state.branchCompletionTimes.process / 1000).toFixed(2)}s
-- External: ${(state.branchCompletionTimes.external / 1000).toFixed(2)}s
-- QA: ${(state.branchCompletionTimes.qa / 1000).toFixed(2)}s
+- Quick: ${(state.branchCompletionTimes['quick']! / 1000).toFixed(2)}s
+- Process: ${(state.branchCompletionTimes['process']! / 1000).toFixed(2)}s
+- External: ${(state.branchCompletionTimes['external']! / 1000).toFixed(2)}s
+- QA: ${(state.branchCompletionTimes['qa']! / 1000).toFixed(2)}s
 
 Key Insight: By using addEdge with an array of nodes,
 the aggregation waited for ALL branches to complete

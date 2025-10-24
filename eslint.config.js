@@ -1,19 +1,24 @@
+// @ts-check
+
 import js from '@eslint/js';
+import tsParser from '@typescript-eslint/parser';
 import typescript from '@typescript-eslint/eslint-plugin';
-import typescriptParser from '@typescript-eslint/parser';
+import prettier from 'eslint-plugin-prettier';
+import prettierConfig from 'eslint-config-prettier';
 
 export default [
-  // Apply to TypeScript files
+  js.configs.recommended,
+  prettierConfig,
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ['**/*.{js,mjs,cjs,ts}'],
     languageOptions: {
-      parser: typescriptParser,
+      parser: tsParser,
       parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
         project: './tsconfig.json',
       },
       globals: {
+        node: true,
+        jest: true,
         console: 'readonly',
         process: 'readonly',
         module: 'readonly',
@@ -27,98 +32,196 @@ export default [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         NodeJS: 'readonly',
-        fetch: 'readonly'
+        fetch: 'readonly',
       },
     },
     plugins: {
       '@typescript-eslint': typescript,
+      prettier,
     },
     rules: {
-      // Extend recommended configs
-      ...js.configs.recommended.rules,
-      ...typescript.configs.recommended.rules,
-
-      // Strict TypeScript rules
-      '@typescript-eslint/no-unused-vars': ['error', { 
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        ignoreRestSiblings: true 
-      }],
-      '@typescript-eslint/no-explicit-any': 'warn', // Warn instead of error
-      '@typescript-eslint/prefer-nullish-coalescing': 'error',
-      '@typescript-eslint/prefer-optional-chain': 'error',
-      '@typescript-eslint/no-non-null-assertion': 'error',
+      // ====== HIGH VALUE - PREVENT REAL BUGS ======
+      // TypeScript Type Safety (Critical)
+      '@typescript-eslint/no-explicit-any': 'error', // Enforce strict no-any rule
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+        },
+      ],
       '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/no-for-in-array': 'error',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        {
+          checksVoidReturn: {
+            attributes: false,
+          },
+        },
+      ],
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      '@typescript-eslint/consistent-type-assertions': [
+        'error',
+        {
+          assertionStyle: 'as',
+          objectLiteralTypeAssertions: 'never',
+        },
+      ],
 
-      // Code quality rules
-      'no-console': 'off', // Allow console for CLI apps
+      // Good Practices (Important)
+      '@typescript-eslint/explicit-function-return-type': [
+        'warn',
+        {
+          allowExpressions: true,
+          allowTypedFunctionExpressions: true,
+          allowHigherOrderFunctions: true,
+          allowDirectConstAssertionInArrowFunctions: true,
+        },
+      ],
+      '@typescript-eslint/prefer-nullish-coalescing': 'warn',
+      '@typescript-eslint/prefer-optional-chain': 'warn',
+      '@typescript-eslint/consistent-type-imports': [
+        'warn',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'separate-type-imports',
+        },
+      ],
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
+      '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
+
+      // ====== MEDIUM VALUE - GOOD PRACTICES ======
+      // Async/Promise Rules
+      '@typescript-eslint/require-await': 'warn',
+      '@typescript-eslint/return-await': ['warn', 'in-try-catch'],
+
+      // General JavaScript Rules
       'prefer-const': 'error',
       'no-var': 'error',
-      'eqeqeq': ['error', 'always'],
-      'curly': 'off', // Relax curly braces for existing code
-      'no-throw-literal': 'error',
-      'prefer-template': 'off', // Allow string concatenation
-      'no-duplicate-imports': 'error',
-      'no-empty-pattern': 'off', // Allow empty destructuring
-
-      // Style rules (relaxed for this codebase)
-      'indent': 'off', // Too strict for existing code
-      'quotes': 'off', // Mixed quotes in existing code
-      'semi': ['error', 'always'],
-      'comma-dangle': 'off', // Mixed trailing commas
-      'object-curly-spacing': ['error', 'always'],
-      'array-bracket-spacing': ['error', 'never'],
-
-      // Function rules
-      '@typescript-eslint/explicit-function-return-type': 'off', // Type inference is good
-      '@typescript-eslint/explicit-module-boundary-types': 'off', // Type inference is good
-      'prefer-arrow-callback': 'error',
-      'arrow-spacing': 'error',
-
-      // Import rules (relaxed)
-      'sort-imports': 'off', // Too strict for existing imports
-
-      // Complexity rules
-      'complexity': ['warn', 15],
-      'max-depth': ['warn', 4],
-      'max-lines-per-function': ['warn', 150],
-
-      // Security rules
+      curly: ['error', 'all'],
+      eqeqeq: ['error', 'always', { null: 'ignore' }], // Allow == null for null/undefined check
       'no-eval': 'error',
-      'no-implied-eval': 'error',
-      'no-new-func': 'error',
-      'no-script-url': 'error'
+      'object-shorthand': ['warn', 'always'],
+      'prefer-arrow-callback': 'warn',
+      'prefer-template': 'warn',
+      'no-console': [
+        'warn',
+        {
+          allow: ['warn', 'error', 'info', 'debug'],
+        },
+      ],
+
+      // ====== RELAXED/REMOVED - TOO STRICT ======
+      // Disabled overly strict rules
+      '@typescript-eslint/strict-boolean-expressions': 'off', // Too verbose
+      '@typescript-eslint/no-unnecessary-condition': 'off', // Too aggressive
+      '@typescript-eslint/no-unsafe-assignment': 'off', // Too strict for external APIs
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off', // Redundant with return types
+      '@typescript-eslint/prefer-readonly': 'off', // Nice but not critical
+      '@typescript-eslint/member-ordering': 'off', // Too pedantic
+      '@typescript-eslint/no-shadow': 'warn', // Warn is enough
+      '@typescript-eslint/promise-function-async': 'off', // Not always necessary
+      '@typescript-eslint/only-throw-error': 'warn',
+      '@typescript-eslint/interface-name-prefix': 'off',
+
+      // Naming Conventions (Simplified)
+      '@typescript-eslint/naming-convention': [
+        'warn',
+        {
+          selector: 'typeLike',
+          format: ['PascalCase'],
+        },
+        {
+          selector: 'enumMember',
+          format: ['UPPER_CASE', 'PascalCase'],
+        },
+      ],
+
+      // Complexity Rules (More Reasonable)
+      complexity: ['warn', 15], // Increased from 10
+      'max-depth': ['warn', 4], // Increased from 3
+      'max-lines-per-function': [
+        'warn',
+        {
+          max: 100, // Increased from 50
+          skipBlankLines: true,
+          skipComments: true,
+        },
+      ],
+      'max-params': ['warn', { max: 5 }], // Increased from 4
+      'max-lines': [
+        'warn',
+        {
+          max: 600, // Increased from 300
+          skipBlankLines: true,
+          skipComments: true,
+        },
+      ],
+
+      // Disabled annoying rules
+      'no-magic-numbers': 'off', // Too many false positives
+      'sort-imports': 'off', // Let prettier/import plugin handle this
+      'prefer-destructuring': [
+        'warn',
+        {
+          array: true, // Enforce array destructuring
+          object: false, // Don't enforce object destructuring for flexibility
+        },
+        {
+          enforceForRenamedProperties: false,
+        },
+      ],
+      'no-param-reassign': [
+        'warn',
+        {
+          props: false, // Allow property modification
+        },
+      ],
+      'no-nested-ternary': 'off', // Sometimes useful
+      'no-else-return': 'off', // Sometimes else is clearer
+      'consistent-return': 'off', // TypeScript handles this
+      'no-unused-expressions': 'off', // Can conflict with optional chaining
+      'max-nested-callbacks': ['warn', 5], // Increased from 3
+      'max-statements-per-line': 'off',
+      'require-atomic-updates': 'off', // Too many false positives
+      'prefer-promise-reject-errors': 'warn',
+      'no-unneeded-ternary': 'warn',
+      radix: 'warn',
+      'no-return-await': 'off',
+
+      // TypeScript handles these
+      '@typescript-eslint/no-inferrable-types': 'off',
+      '@typescript-eslint/no-unnecessary-type-arguments': 'off',
+      '@typescript-eslint/no-unnecessary-qualifier': 'off',
+      '@typescript-eslint/prefer-reduce-type-parameter': 'off',
+      '@typescript-eslint/prefer-return-this-type': 'off',
+      '@typescript-eslint/prefer-string-starts-ends-with': 'off',
+      '@typescript-eslint/prefer-includes': 'off',
+      '@typescript-eslint/no-implied-eval': 'warn',
+      '@typescript-eslint/unified-signatures': 'off',
+      '@typescript-eslint/array-type': 'off',
+      '@typescript-eslint/no-non-null-asserted-optional-chain': 'warn',
+      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
+      '@typescript-eslint/no-confusing-void-expression': 'off',
+
+      // Prettier Integration
+      'prettier/prettier': ['error', {}, { usePrettierrc: true }],
     },
   },
-  // Apply to JavaScript files
-  {
-    files: ['**/*.js', '**/*.mjs'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-    },
-    rules: {
-      ...js.configs.recommended.rules,
-      'no-unused-vars': ['error', { 
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        ignoreRestSiblings: true 
-      }],
-      'prefer-const': 'error',
-      'no-var': 'error',
-      'eqeqeq': ['error', 'always'],
-      'curly': ['error', 'all'],
-    },
-  },
-  // Ignore patterns
   {
     ignores: [
-      'node_modules/**',
+      '.eslintrc.js',
       'dist/**',
-      'build/**',
-      '*.d.ts',
-      'coverage/**',
-      '.git/**'
+      'node_modules/**',
+      '**/vite.config.*.timestamp*',
+      '**/vitest.config.*.timestamp*',
     ],
   },
 ];

@@ -107,7 +107,7 @@ const ParentStateAnnotation = Annotation.Root({
 
 // Critique agent model call
 async function callCritiqueModel(state: typeof MessagesAnnotation.State) {
-  if(!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if(!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
       "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
       "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
@@ -130,7 +130,7 @@ async function callCritiqueModel(state: typeof MessagesAnnotation.State) {
 function shouldContinueCritique(state: typeof MessagesAnnotation.State) {
   const lastMessage = state.messages[state.messages.length - 1];
   
-  if ("tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+  if (lastMessage && "tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
     return "tools";
   }
   
@@ -252,7 +252,7 @@ async function critiqueAgentNode(state: typeof ParentStateAnnotation.State) {
  * 
  * Note: We reset image path and decision to start fresh
  */
-async function humanInputNode(state: typeof ParentStateAnnotation.State) {
+async function humanInputNode(_state: typeof ParentStateAnnotation.State) {
   const response = await interrupt("The cat image was approved! What would you like to do next?");
   
   return {
@@ -467,7 +467,6 @@ async function main() {
         let currentAgent = "";
         let firstChunk = true;
         let spinnerInterval: NodeJS.Timeout | null = null;
-        let inSubgraph = false;
         
         for await (const event of eventStream) {
           // Debug log to see all events

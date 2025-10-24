@@ -42,7 +42,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
   /**
    * Track node context for better hierarchy understanding
    */
-  onChainStart(run: Run): void {
+  override onChainStart(run: Run): void {
     // Track user-defined nodes (exclude system nodes)
     const isUserNode = !run.name.includes("__") && 
                       !run.name.includes("<") && 
@@ -58,7 +58,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
   /**
    * Extract tool calls from LLM responses
    */
-  onLLMEnd(run: Run): void {
+  override onLLMEnd(run: Run): void {
     // Navigate to the tool calls in the output structure
     const message = run.outputs?.generations?.[0]?.[0]?.message;
     
@@ -104,7 +104,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
   /**
    * Track actual tool executions for comparison
    */
-  onToolEnd(run: Run): void {
+  override onToolEnd(run: Run): void {
     this.toolExecutions++;
     
     console.log("\n" + "-".repeat(80));
@@ -235,7 +235,7 @@ function createNestedGraph() {
     async function analyzeRequest(state: typeof GraphState.State) {
       // Force specific tool calls based on the user's request
       const lastMessage = state.messages[state.messages.length - 1];
-      const content = lastMessage.content as string;
+      const content = (lastMessage?.content ?? "") as string;
       
       console.log(`[Analyzer] Processing request: "${content}"`);
       
@@ -279,7 +279,7 @@ function createNestedGraph() {
     
     function shouldCallTools(state: typeof GraphState.State) {
       const lastMessage = state.messages[state.messages.length - 1];
-      if ("tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+      if (lastMessage && "tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
         return "tools";
       }
       return "summarize";
@@ -306,7 +306,7 @@ function createNestedGraph() {
   // Outer graph that contains the subgraph
   const toolSubgraph = createToolCallingSubgraph();
   
-  async function coordinator(state: typeof GraphState.State) {
+  async function coordinator(_state: typeof GraphState.State) {
     console.log(`[Coordinator] Delegating to tool subgraph`);
     return {
       messages: [new AIMessage("Coordinating tool execution")]
@@ -341,7 +341,7 @@ function createLLMGraph() {
   
   async function shouldUseTool(state: typeof MessagesAnnotation.State) {
     const lastMessage = state.messages[state.messages.length - 1];
-    if ("tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+    if (lastMessage && "tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
       return "tools";
     }
     return "__end__";

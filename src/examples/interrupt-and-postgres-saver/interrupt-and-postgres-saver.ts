@@ -89,7 +89,7 @@ const ResearchState = Annotation.Root({
 
 // Initialize LLM
 function createLLM() {
-  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if (!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
       "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
       "Please set it to the path of your service account key file."
@@ -106,13 +106,13 @@ function createLLM() {
 
 // Initialize Tavily search tool
 function createSearchTool() {
-  if (!process.env.TAVILY_API_KEY) {
+  if (!process.env['TAVILY_API_KEY']) {
     throw new Error("TAVILY_API_KEY environment variable is not set.");
   }
 
   return new TavilySearch({
     maxResults: 5,
-    tavilyApiKey: process.env.TAVILY_API_KEY
+    tavilyApiKey: process.env['TAVILY_API_KEY']
   });
 }
 
@@ -531,9 +531,7 @@ function buildResearchWorkflow() {
 // Helper to format checkpoint info
 function formatCheckpoint(checkpointTuple: any, index: number) {
   const state = checkpointTuple.checkpoint?.channel_values || {};
-  const metadata = checkpointTuple.metadata || {};
   const createdAt = checkpointTuple.checkpoint?.ts || "Unknown";
-  const threadId = checkpointTuple.config?.configurable?.thread_id || "Unknown";
   
   // Format timestamp to be more readable
   let formattedTime = createdAt;
@@ -652,9 +650,9 @@ async function main() {
       const currentState = await graph.getState({ 
         configurable: { thread_id: threadId } 
       });
-      
+
       // Detect interrupt: pending tasks with interrupts property
-      if (currentState.tasks.length > 0 && currentState.tasks[0].interrupts?.length > 0) {
+      if (currentState.tasks.length > 0 && currentState.tasks[0]?.interrupts?.length > 0) {
         // We're paused at human_feedback node
         console.log("\n=== RESEARCH SUMMARY ===");
         console.log(currentState.values.summary);
@@ -698,7 +696,7 @@ async function main() {
       // Group by thread ID and get only the latest checkpoint per thread
       const threadMap = new Map<string, any>();
       for (const checkpoint of allCheckpoints) {
-        const threadId = checkpoint.config?.configurable?.thread_id;
+        const threadId = checkpoint.config?.configurable?.['thread_id'];
         if (threadId && !threadMap.has(threadId)) {
           threadMap.set(threadId, checkpoint);
         }
@@ -716,7 +714,7 @@ async function main() {
       
       if (index >= 0 && index < uniqueThreads.length) {
         const thread = uniqueThreads[index];
-        const threadId = thread.config.configurable?.thread_id;
+        const threadId = thread.config.configurable?.['thread_id'];
         
         // Get current state
         const currentState = await graph.getState({ 
@@ -774,9 +772,9 @@ async function main() {
           const newState = await graph.getState({ 
             configurable: { thread_id: threadId } 
           });
-          
+
           // If we hit an interrupt during resume, handle it
-          if (newState.tasks.length > 0 && newState.tasks[0].interrupts?.length > 0) {
+          if (newState.tasks.length > 0 && newState.tasks[0]?.interrupts?.length > 0) {
             console.log("\n📍 Session paused. Use 'Resume Research' to continue.");
           } else {
             console.log("\n✅ Research completed!");
@@ -800,7 +798,7 @@ async function main() {
         // Group by thread ID
         const threadGroups = new Map<string, any[]>();
         for (const checkpoint of allCheckpoints) {
-          const threadId = checkpoint.config?.configurable?.thread_id;
+          const threadId = checkpoint.config?.configurable?.['thread_id'];
           if (threadId) {
             if (!threadGroups.has(threadId)) {
               threadGroups.set(threadId, []);

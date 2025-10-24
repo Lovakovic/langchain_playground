@@ -102,7 +102,7 @@ export interface DocumentTextResult {
 /**
  * Analyzes text content to determine its likely type based on universal patterns
  */
-function inferContentType(text: string, blockType: string, context: { prevBlock?: string; nextBlock?: string }): {
+function inferContentType(text: string, blockType: string, _context: { prevBlock?: string; nextBlock?: string }): {
   type: ContentBlock['type'];
   level?: number;
 } {
@@ -458,9 +458,9 @@ export class DocumentAIProcessor {
     this.client = new DocumentProcessorServiceClient({
       apiEndpoint: 'eu-documentai.googleapis.com',
     });
-    this.processorId = process.env.DOCUMENT_AI_PROCESSOR_ID!;
-    this.location = process.env.DOCUMENT_AI_LOCATION!;
-    this.projectId = process.env.GOOGLE_CLOUD_PROJECT_ID!;
+    this.processorId = process.env['DOCUMENT_AI_PROCESSOR_ID']!;
+    this.location = process.env['DOCUMENT_AI_LOCATION']!;
+    this.projectId = process.env['GOOGLE_CLOUD_PROJECT_ID']!;
 
     if (!this.processorId || !this.location || !this.projectId) {
       throw new Error(

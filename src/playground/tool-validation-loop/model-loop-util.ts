@@ -241,7 +241,7 @@ export async function executeModelWithToolValidation<R>(
   const validationState = config.configurable.validationState;
   let lastApiError: Error | undefined;
   let currentMessages = [...messages];
-  let lastModelResponse: AIMessage | undefined;
+  let : AIMessage | undefined;
 
   // Outer loop for API retries
   for (let apiAttempt = 1; apiAttempt <= maxApiRetries; apiAttempt++) {

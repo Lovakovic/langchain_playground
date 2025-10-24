@@ -111,7 +111,7 @@ class HierarchyAwareEventHandler extends BaseTracer {
    * Track when ANY operation starts (chain, llm, tool) to build hierarchy map
    * This is called automatically by LangChain for every run
    */
-  onRunCreate(run: Run): void {
+  override onRunCreate(run: Run): void {
     this.runHierarchy.set(run.id, {
       parentRunId: run.parent_run_id,
       name: run.name || "unnamed",
@@ -125,7 +125,7 @@ class HierarchyAwareEventHandler extends BaseTracer {
    * IMPORTANT: This method is ONLY called for custom events dispatched via
    * dispatchCustomEvent(), not for standard LangChain events
    */
-  async handleCustomEvent(
+  override async handleCustomEvent(
     eventName: string,
     data: any,
     runId: string,
@@ -363,7 +363,7 @@ async function createGraphExample() {
     await dispatchCustomEvent("node_entered", {
       node: "analyzer",
       messageCount: state.messages.length,
-      lastMessageType: lastMessage._getType()
+      lastMessageType: lastMessage?._getType()
     });
     
     // Create a sub-chain within the node - this creates a child run
@@ -386,7 +386,7 @@ async function createGraphExample() {
     }).withConfig({ runName: "sentimentAnalyzer" });
     
     // Invoke sub-chain - events will show deeper hierarchy
-    const content = lastMessage.content as string;
+    const content = (lastMessage?.content ?? "") as string;
     const sentiment = await sentimentAnalyzer.invoke(content);
     
     // Event: Track node completion

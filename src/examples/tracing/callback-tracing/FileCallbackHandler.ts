@@ -83,7 +83,7 @@ export class FileCallbackHandler extends BaseTracer {
    * Utility to format objects with preserved class names
    * Currently unused but kept for potential future use
    */
-  private formatValue(obj: unknown, fallback: string): string {
+  private (obj: unknown, fallback: string): string {
     try {
       return util.inspect(obj, { 
         depth: null, 
@@ -175,7 +175,7 @@ export class FileCallbackHandler extends BaseTracer {
    * - Branch operations (conditional routing)
    */
   
-  onChainStart(run: Run) {
+  override onChainStart(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[chain/start] [${crumbs}] Entering Chain run with input:`,
@@ -183,7 +183,7 @@ export class FileCallbackHandler extends BaseTracer {
     );
   }
 
-  onChainEnd(run: Run) {
+  override onChainEnd(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[chain/end] [${crumbs}] [${this.elapsed(run)}] Exiting Chain run with output:`,
@@ -191,7 +191,7 @@ export class FileCallbackHandler extends BaseTracer {
     );
   }
 
-  onChainError(run: Run) {
+  override onChainError(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[chain/error] [${crumbs}] [${this.elapsed(run)}] Chain run errored with error:`,
@@ -208,11 +208,11 @@ export class FileCallbackHandler extends BaseTracer {
    * - Tool call decisions
    */
   
-  onLLMStart(run: Run) {
+  override onLLMStart(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     // Handle both old-style prompts and new-style messages
     const inputs = "prompts" in run.inputs
-      ? { prompts: (run.inputs.prompts as string[]).map((p) => p.trim()) }
+      ? { prompts: (run.inputs['prompts'] as string[]).map((p) => p.trim()) }
       : run.inputs;
     this.log(
       `[llm/start] [${crumbs}] Entering LLM run with input:`,
@@ -220,7 +220,7 @@ export class FileCallbackHandler extends BaseTracer {
     );
   }
 
-  onLLMEnd(run: Run) {
+  override onLLMEnd(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[llm/end] [${crumbs}] [${this.elapsed(run)}] Exiting LLM run with output:`,
@@ -228,7 +228,7 @@ export class FileCallbackHandler extends BaseTracer {
     );
   }
 
-  onLLMError(run: Run) {
+  override onLLMError(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[llm/error] [${crumbs}] [${this.elapsed(run)}] LLM run errored with error:`,
@@ -247,23 +247,23 @@ export class FileCallbackHandler extends BaseTracer {
    * "1:chain:LangGraph > 9:chain:tools > 10:tool:get_weather"
    */
   
-  onToolStart(run: Run) {
+  override onToolStart(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[tool/start] [${crumbs}] Entering Tool run with input:`,
-      run.inputs.input
+      run.inputs['input']
     );
   }
 
-  onToolEnd(run: Run) {
+  override onToolEnd(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[tool/end] [${crumbs}] [${this.elapsed(run)}] Exiting Tool run with output:`,
-      run.outputs?.output
+      run.outputs?.['output']
     );
   }
 
-  onToolError(run: Run) {
+  override onToolError(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[tool/error] [${crumbs}] [${this.elapsed(run)}] Tool run errored with error:`,
@@ -276,7 +276,7 @@ export class FileCallbackHandler extends BaseTracer {
    * These would fire when using vector stores or document retrievers
    */
   
-  onRetrieverStart(run: Run) {
+  override onRetrieverStart(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[retriever/start] [${crumbs}] Entering Retriever run with input:`,
@@ -284,7 +284,7 @@ export class FileCallbackHandler extends BaseTracer {
     );
   }
 
-  onRetrieverEnd(run: Run) {
+  override onRetrieverEnd(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[retriever/end] [${crumbs}] [${this.elapsed(run)}] Exiting Retriever run with output:`,
@@ -292,7 +292,7 @@ export class FileCallbackHandler extends BaseTracer {
     );
   }
 
-  onRetrieverError(run: Run) {
+  override onRetrieverError(run: Run) {
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[retriever/error] [${crumbs}] [${this.elapsed(run)}] Retriever run errored with error:`,
@@ -306,7 +306,7 @@ export class FileCallbackHandler extends BaseTracer {
    * LangGraph agents use chain events instead
    */
   
-  onAgentAction(run: Run) {
+  override onAgentAction(run: Run) {
     const agentRun = run as any;
     const crumbs = this.getBreadcrumbs(run);
     this.log(

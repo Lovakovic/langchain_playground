@@ -6,7 +6,7 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { PDFDocument, rgb, PageSizes } from 'pdf-lib';
+import { PDFDocument, rgb, _PageSizes } from 'pdf-lib';
 
 type IProcessRequest = protos.google.cloud.documentai.v1.IProcessRequest;
 
@@ -152,9 +152,9 @@ class DocumentAIOCRProcessor {
     this.client = new DocumentProcessorServiceClient({
       apiEndpoint: 'eu-documentai.googleapis.com',
     });
-    this.processorId = process.env.DOCUMENT_AI_OCR_PROCESSOR_ID!;
-    this.location = process.env.DOCUMENT_AI_LOCATION!;
-    this.projectId = process.env.GOOGLE_CLOUD_PROJECT_ID!;
+    this.processorId = process.env['DOCUMENT_AI_OCR_PROCESSOR_ID']!;
+    this.location = process.env['DOCUMENT_AI_LOCATION']!;
+    this.projectId = process.env['GOOGLE_CLOUD_PROJECT_ID']!;
 
     if (!this.processorId || !this.location || !this.projectId) {
       throw new Error(
@@ -381,7 +381,7 @@ class DocumentAIOCRProcessor {
         }
 
         const pdfPage = pages[pageIndex];
-        const { width: pageWidth, height: pageHeight } = pdfPage.getSize();
+        const { width: pageWidth, height: pageHeight } = pdfPage!.getSize();
         
         console.log(`📄 Annotating page ${pageIndex + 1} (${pageWidth}x${pageHeight})`);
 

@@ -11,8 +11,8 @@
 import { BaseTracer, Run } from "@langchain/core/tracers/base";
 import { StateGraph, MessagesAnnotation, Annotation } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { ChatVertexAI } from "@langchain/google-vertexai";
-import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
+import { _ChatVertexAI } from "@langchain/google-vertexai";
+import { HumanMessage, AIMessage, _BaseMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as util from "util";
@@ -50,7 +50,7 @@ export class HierarchicalToolTracer extends BaseTracer {
   /**
    * Track all chain starts to build context
    */
-  onChainStart(run: Run): void {
+  override onChainStart(run: Run): void {
     // Detect user-defined nodes vs system nodes
     const isSystemNode = run.name.includes("__") || 
                         run.name.includes("<") || 
@@ -84,14 +84,14 @@ export class HierarchicalToolTracer extends BaseTracer {
     }
   }
 
-  onChainEnd(run: Run): void {
+  override onChainEnd(run: Run): void {
     // Pop graph stack when LangGraph ends
     if (run.name === "LangGraph") {
       this.graphStack.pop();
     }
   }
 
-  onToolStart(run: Run): void {
+  override onToolStart(run: Run): void {
     this.allRuns.set(run.id, {
       run,
       nodeType: "tool",
@@ -102,7 +102,7 @@ export class HierarchicalToolTracer extends BaseTracer {
   /**
    * Build the complete hierarchy path for display
    */
-  private buildHierarchyDisplay(toolRunId: string): {
+  private buildHierarchyDisplay(_toolRunId: string): {
     rootNode: string;
     parentGraphNodes: string[];
     immediateNode: string;
@@ -111,7 +111,6 @@ export class HierarchicalToolTracer extends BaseTracer {
     const graphLayers = ["research_coordinator", "topic_analyzer", "research_agent"];
     
     // The current user node context tells us which agent initiated the tool call
-    const immediateNode = this.currentUserNode || "unknown";
     
     // Based on graph depth, determine the hierarchy
     const depth = this.graphStack.length;
@@ -143,7 +142,7 @@ export class HierarchicalToolTracer extends BaseTracer {
   /**
    * Enhanced onToolEnd that shows the proper hierarchy
    */
-  onToolEnd(run: Run): void {
+  override onToolEnd(run: Run): void {
     this.toolExecutions++;
     
     const hierarchy = this.buildHierarchyDisplay(run.id);
@@ -359,7 +358,7 @@ function createDeepResearchSubgraph() {
     const lastMessage = state.messages[state.messages.length - 1];
     
     // First check if there are tool calls to execute
-    if ("tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
+    if (lastMessage && "tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
       return "tools";
     }
     
@@ -407,7 +406,7 @@ function createResearchSubgraph() {
   
   async function topicAnalyzerNode(state: typeof ResearchState.State) {
     const lastMessage = state.messages[state.messages.length - 1];
-    const topic = lastMessage.content as string;
+    const topic = (lastMessage?.content ?? "") as string;
     
     // Determine research depth based on topic complexity
     const complexTopics = ["quantum", "AI", "blockchain", "neural"];
@@ -453,9 +452,9 @@ function createMainGraph() {
   
   async function researchCoordinatorNode(state: typeof MessagesAnnotation.State) {
     const lastMessage = state.messages[state.messages.length - 1];
-    console.log(`[Research Coordinator] Coordinating research for: ${lastMessage.content}`);
+    console.log(`[Research Coordinator] Coordinating research for: ${lastMessage?.content}`);
     return {
-      messages: [new AIMessage(`Coordinating research for: ${lastMessage.content}`)]
+      messages: [new AIMessage(`Coordinating research for: ${lastMessage?.content}`)]
     };
   }
   
@@ -523,7 +522,7 @@ async function main() {
       );
       
       const finalMessage = result.messages[result.messages.length - 1];
-      console.log(`\n✅ Final Result: ${finalMessage.content}\n`);
+      console.log(`\n✅ Final Result: ${finalMessage?.content}\n`);
     } catch (error) {
       console.error(`\n❌ Error: ${error}`);
     }

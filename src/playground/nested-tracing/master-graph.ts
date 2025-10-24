@@ -1,7 +1,7 @@
 import { END, START, StateGraph } from '@langchain/langgraph';
 import { dispatchCustomEvent } from '@langchain/core/callbacks/dispatch';
 import { MasterGraphState } from './states';
-import { MockMenuItem, MockFileMetadata, CustomEventTypes, StateTransitionEventData } from './types';
+import { _MockMenuItem, _MockFileMetadata, CustomEventTypes, StateTransitionEventData } from './types';
 import { createExtractionSubgraph } from './extraction-subgraph';
 import { 
   createCategoryEnrichmentSubgraph, 
@@ -146,7 +146,7 @@ async function mergePhase1EnrichmentsNode(state: typeof MasterGraphState.State):
  * This demonstrates multi-phase processing where later phases depend on
  * earlier phases completing. Common in complex pipelines like monkey-ai.
  */
-async function preparePhase2EnrichmentNode(state: typeof MasterGraphState.State): Promise<Partial<typeof MasterGraphState.State>> {
+async function preparePhase2EnrichmentNode(_state: typeof MasterGraphState.State): Promise<Partial<typeof MasterGraphState.State>> {
   console.log('⚙️  Preparing Phase 2 enrichment...');
   
   // Simulate preparation work for the next phase

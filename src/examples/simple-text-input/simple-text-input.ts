@@ -5,7 +5,7 @@ import {ChatOpenAI} from "@langchain/openai";
 dotenv.config();
 
 const main = async () => {
-  if(!process.env.OPENAI_API_KEY) {
+  if(!process.env['OPENAI_API_KEY']) {
     throw new Error(
       "OPENAI_API_KEY environment variable is not set. "
     );

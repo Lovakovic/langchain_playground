@@ -90,12 +90,12 @@ interface AnalysisState {
 class StructuredOutputCallbackHandler extends BaseCallbackHandler {
   name = "structured_output_handler";
 
-  async handleLLMStart(
+  override async handleLLMStart(
     llm: Serialized,
     prompts: string[],
     runId: string,
     parentRunId?: string,
-    extraParams?: Record<string, any>,
+    _extraParams?: Record<string, any>,
     tags?: string[],
     metadata?: Record<string, any>
   ): Promise<void> {
@@ -163,7 +163,7 @@ class StructuredOutputCallbackHandler extends BaseCallbackHandler {
    * - The response includes separate token counts for reasoning vs output
    * - The message type is AIMessageChunk (not AIMessage) for streaming support
    */
-  async handleLLMEnd(
+  override async handleLLMEnd(
     output: LLMResult,
     runId: string
   ): Promise<void> {
@@ -180,7 +180,7 @@ class StructuredOutputCallbackHandler extends BaseCallbackHandler {
     }));
   }
 
-  async handleChainStart(
+  override async handleChainStart(
     chain: Serialized,
     inputs: Record<string, any>,
     runId: string
@@ -190,7 +190,7 @@ class StructuredOutputCallbackHandler extends BaseCallbackHandler {
     console.log("└─ Input Keys:", Object.keys(inputs).join(", "));
   }
 
-  async handleChainEnd(
+  override async handleChainEnd(
     outputs: Record<string, any>,
     runId: string
   ): Promise<void> {
