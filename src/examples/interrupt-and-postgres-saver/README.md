@@ -1,6 +1,9 @@
 # PostgresSaver Example: Multi-Step Research Assistant with Interrupts
 
-This example demonstrates how to use PostgreSQL for checkpointing in LangGraph, with a special focus on **properly implementing interrupt/resume patterns**. The research assistant performs multi-step web searches using Tavily API and showcases the non-obvious behavior of LangGraph interrupts.
+This example demonstrates how to use PostgreSQL for checkpointing in LangGraph,
+with a special focus on **properly implementing interrupt/resume patterns**. The
+research assistant performs multi-step web searches using Tavily API and
+showcases the non-obvious behavior of LangGraph interrupts.
 
 ## Features
 
@@ -13,10 +16,12 @@ This example demonstrates how to use PostgreSQL for checkpointing in LangGraph, 
 
 ## ⚠️ Critical Interrupt Pattern Insights
 
-This example specifically addresses common misconceptions about LangGraph interrupts:
+This example specifically addresses common misconceptions about LangGraph
+interrupts:
 
 1. **Interrupts do NOT throw errors** - `graph.invoke()` completes successfully
-2. **Must check state after invoke** - Use `graph.getState()` to detect interrupts
+2. **Must check state after invoke** - Use `graph.getState()` to detect
+   interrupts
 3. **Resume with Command object** - Use `new Command({ resume: value })`
 4. **No try/catch needed** - Interrupts aren't exceptions
 
@@ -32,17 +37,20 @@ See the heavily annotated code for detailed explanations.
 ## Setup
 
 1. Start PostgreSQL container:
+
 ```bash
 cd src/examples/postgres-saver
 docker compose up -d
 ```
 
 2. Install dependencies (from project root):
+
 ```bash
 yarn install
 ```
 
 3. Run the example:
+
 ```bash
 yarn ts-node src/examples/postgres-saver/index.ts
 ```
@@ -97,18 +105,20 @@ Enter research topic: Latest developments in quantum computing 2024
 ### 1. Proper Interrupt Pattern 🚨
 
 **Common Mistake (What NOT to do):**
+
 ```typescript
 // ❌ WRONG - Expecting interrupt to throw an error
 try {
   await graph.invoke(input, config);
 } catch (error) {
-  if (error.name === "GraphInterrupt") {
+  if (error.name === 'GraphInterrupt') {
     // This will NEVER happen!
   }
 }
 ```
 
 **Correct Pattern:**
+
 ```typescript
 // ✅ CORRECT - Check state after invoke
 await graph.invoke(input, config);
@@ -117,19 +127,18 @@ const state = await graph.getState(config);
 if (state.tasks.length > 0 && state.tasks[0].interrupts?.length > 0) {
   // Graph is paused at interrupt
   const feedback = await getUserInput();
-  
+
   // Resume with Command
-  await graph.invoke(
-    new Command({ resume: feedback }),
-    config
-  );
+  await graph.invoke(new Command({ resume: feedback }), config);
 }
 ```
 
 ### 2. PostgreSQL Checkpointer Setup
+
 ```typescript
 const pool = new Pool({
-  connectionString: "postgresql://langgraph:langgraph@localhost:15432/checkpoints"
+  connectionString:
+    'postgresql://langgraph:langgraph@localhost:15432/checkpoints',
 });
 
 const checkpointer = new PostgresSaver(pool);
@@ -137,16 +146,19 @@ await checkpointer.setup();
 ```
 
 ### 3. State Persistence
+
 - Every node saves a checkpoint after execution
 - State includes all search results, sources, and metadata
 - Checkpoints enable resumption from exact point
 
 ### 4. Cost Efficiency
+
 - Tracks API costs per search ($0.05 per Tavily search)
 - Shows total saved when resuming from checkpoint
 - Prevents re-running expensive operations
 
 ### 5. Session Management
+
 ```typescript
 // List sessions grouped by thread
 const threadMap = new Map();

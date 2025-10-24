@@ -1,8 +1,5 @@
 import { config } from 'dotenv';
-import {
-  DocumentProcessorServiceClient,
-  protos,
-} from '@google-cloud/documentai';
+import { DocumentProcessorServiceClient, protos } from '@google-cloud/documentai';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,9 +8,12 @@ import { fileURLToPath } from 'url';
 // Creating type aliases makes the code more readable.
 type IProcessRequest = protos.google.cloud.documentai.v1.IProcessRequest;
 type IDocumentLayout = protos.google.cloud.documentai.v1.Document.IDocumentLayout;
-type IDocumentLayoutBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.IDocumentLayoutBlock;
-type ILayoutTextBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTextBlock;
-type ILayoutTableBlock = protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTableBlock;
+type IDocumentLayoutBlock =
+  protos.google.cloud.documentai.v1.Document.DocumentLayout.IDocumentLayoutBlock;
+type ILayoutTextBlock =
+  protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTextBlock;
+type ILayoutTableBlock =
+  protos.google.cloud.documentai.v1.Document.DocumentLayout.DocumentLayoutBlock.ILayoutTableBlock;
 
 /**
  * Extract text from a document layout block using the EXACT same logic as index.ts.
@@ -27,7 +27,7 @@ function getTextFromLayoutBlock(block: IDocumentLayoutBlock): string {
     if (block.textBlock.blocks?.length) {
       const childTexts = block.textBlock.blocks
         .map((b) => getTextFromLayoutBlock(b))
-        .filter(t => t.trim().length > 0);
+        .filter((t) => t.trim().length > 0);
       if (childTexts.length > 0) {
         text = text ? `${text}\n${childTexts.join('\n')}` : childTexts.join('\n');
       }
@@ -37,12 +37,13 @@ function getTextFromLayoutBlock(block: IDocumentLayoutBlock): string {
 
   if (block.tableBlock?.bodyRows?.length) {
     return block.tableBlock.bodyRows
-      .map(
-        (row) => (row.cells || [])
-          .map((cell) => (cell.blocks || [])
-            .map((b) => getTextFromLayoutBlock(b))
-            .filter(t => t.trim().length > 0)
-            .join(' '),
+      .map((row) =>
+        (row.cells || [])
+          .map((cell) =>
+            (cell.blocks || [])
+              .map((b) => getTextFromLayoutBlock(b))
+              .filter((t) => t.trim().length > 0)
+              .join(' '),
           )
           .join(' | '),
       )
@@ -51,12 +52,13 @@ function getTextFromLayoutBlock(block: IDocumentLayoutBlock): string {
 
   if (block.listBlock?.listEntries?.length) {
     return block.listBlock.listEntries
-      .map((entry) => (entry.blocks || [])
-        .map((b) => getTextFromLayoutBlock(b))
-        .filter(t => t.trim().length > 0)
-        .join(' '),
+      .map((entry) =>
+        (entry.blocks || [])
+          .map((b) => getTextFromLayoutBlock(b))
+          .filter((t) => t.trim().length > 0)
+          .join(' '),
       )
-      .filter(t => t.trim().length > 0)
+      .filter((t) => t.trim().length > 0)
       .join('\n');
   }
 
@@ -64,14 +66,17 @@ function getTextFromLayoutBlock(block: IDocumentLayoutBlock): string {
 }
 
 // Simplified type guard functions using the official types
-function isTextBlock(block: IDocumentLayoutBlock): block is IDocumentLayoutBlock & { textBlock: ILayoutTextBlock } {
+function isTextBlock(
+  block: IDocumentLayoutBlock,
+): block is IDocumentLayoutBlock & { textBlock: ILayoutTextBlock } {
   return !!block.textBlock;
 }
 
-function isTableBlock(block: IDocumentLayoutBlock): block is IDocumentLayoutBlock & { tableBlock: ILayoutTableBlock } {
+function isTableBlock(
+  block: IDocumentLayoutBlock,
+): block is IDocumentLayoutBlock & { tableBlock: ILayoutTableBlock } {
   return !!block.tableBlock;
 }
-
 
 // Enhanced content types for superior formatting
 interface ContentBlock {
@@ -102,12 +107,16 @@ export interface DocumentTextResult {
 /**
  * Analyzes text content to determine its likely type based on universal patterns
  */
-function inferContentType(text: string, blockType: string, _context: { prevBlock?: string; nextBlock?: string }): {
+function inferContentType(
+  text: string,
+  blockType: string,
+  _context: { prevBlock?: string; nextBlock?: string },
+): {
   type: ContentBlock['type'];
   level?: number;
 } {
   const trimmedText = text.trim();
-  
+
   // Empty or very short text
   if (!trimmedText || trimmedText.length < 2) {
     return { type: 'paragraph' };
@@ -119,7 +128,11 @@ function inferContentType(text: string, blockType: string, _context: { prevBlock
   }
 
   // List indicators
-  if (/^[•·▪▫‣⁃]\s/.test(trimmedText) || /^\d+\.\s/.test(trimmedText) || /^[a-zA-Z]\d+\s/.test(trimmedText)) {
+  if (
+    /^[•·▪▫‣⁃]\s/.test(trimmedText) ||
+    /^\d+\.\s/.test(trimmedText) ||
+    /^[a-zA-Z]\d+\s/.test(trimmedText)
+  ) {
     return { type: 'list-item' };
   }
 
@@ -132,7 +145,7 @@ function inferContentType(text: string, blockType: string, _context: { prevBlock
 
   const isShort = trimmedText.length < 50;
   const isAllCaps = trimmedText === trimmedText.toUpperCase() && /[A-Z]/.test(trimmedText);
-  const matchesHeadingPattern = headingPatterns.some(pattern => pattern.test(trimmedText));
+  const matchesHeadingPattern = headingPatterns.some((pattern) => pattern.test(trimmedText));
 
   if ((isShort && isAllCaps) || matchesHeadingPattern) {
     // Determine heading level based on length and context
@@ -155,20 +168,24 @@ function inferContentType(text: string, blockType: string, _context: { prevBlock
 function groupRelatedBlocks(blocks: IDocumentLayoutBlock[]): ContentBlock[][] {
   const groups: ContentBlock[][] = [];
   let currentGroup: ContentBlock[] = [];
-  
+
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
+    if (!block) continue;
+
     const text = getTextFromLayoutBlock(block);
-    
+
     if (!text.trim()) continue;
 
-    const prevText = i > 0 ? getTextFromLayoutBlock(blocks[i - 1]) : undefined;
-    const nextText = i < blocks.length - 1 ? getTextFromLayoutBlock(blocks[i + 1]) : undefined;
-    
+    const prevBlock = i > 0 ? blocks[i - 1] : undefined;
+    const nextBlock = i < blocks.length - 1 ? blocks[i + 1] : undefined;
+    const prevText = prevBlock ? getTextFromLayoutBlock(prevBlock) : undefined;
+    const nextText = nextBlock ? getTextFromLayoutBlock(nextBlock) : undefined;
+
     const { type, level } = inferContentType(
-      text, 
+      text,
       isTableBlock(block) ? 'tableBlock' : 'textBlock',
-      { prevBlock: prevText, nextBlock: nextText }
+      { prevBlock: prevText, nextBlock: nextText },
     );
 
     const contentBlock: ContentBlock = {
@@ -177,13 +194,15 @@ function groupRelatedBlocks(blocks: IDocumentLayoutBlock[]): ContentBlock[][] {
       level,
       content: text,
       metadata: {
-        pageSpan: block.pageSpan ? {
-          pageStart: block.pageSpan.pageStart ?? 0,
-          pageEnd: block.pageSpan.pageEnd ?? 0
-        } : undefined,
+        pageSpan: block.pageSpan
+          ? {
+              pageStart: block.pageSpan.pageStart ?? 0,
+              pageEnd: block.pageSpan.pageEnd ?? 0,
+            }
+          : undefined,
         style: isTextBlock(block) ? (block.textBlock?.type ?? undefined) : undefined,
       },
-      children: []
+      children: [],
     };
 
     // Start new group on headings or significant content breaks
@@ -209,12 +228,13 @@ function groupRelatedBlocks(blocks: IDocumentLayoutBlock[]): ContentBlock[][] {
  */
 function buildHierarchicalStructure(blockGroups: ContentBlock[][]): ContentBlock[] {
   const sections: ContentBlock[] = [];
-  
+
   for (const group of blockGroups) {
     if (group.length === 0) continue;
 
     const firstBlock = group[0];
-    
+    if (!firstBlock) continue;
+
     if (firstBlock.type === 'heading') {
       // Create section with heading
       const section: ContentBlock = {
@@ -223,7 +243,7 @@ function buildHierarchicalStructure(blockGroups: ContentBlock[][]): ContentBlock
         level: firstBlock.level,
         content: firstBlock.content,
         metadata: firstBlock.metadata,
-        children: group.slice(1) // All blocks after the heading
+        children: group.slice(1), // All blocks after the heading
       };
       sections.push(section);
     } else {
@@ -242,20 +262,20 @@ function formatContentBlocksLikeIndex(sections: ContentBlock[]): string {
     switch (block.type) {
       case 'heading':
         return `${block.content}\n`;
-        
+
       case 'section':
         let text = `${block.content}\n`;
         if (block.children) {
           text += block.children.map(formatBlock).join('');
         }
         return text;
-        
+
       case 'list-item':
         return `${block.content}\n`;
-        
+
       case 'table':
         return `${block.content}\n`;
-        
+
       case 'paragraph':
       default:
         return `${block.content}\n`;
@@ -289,14 +309,14 @@ function getAllPageEnds(blocks: IDocumentLayoutBlock[]): number[] {
       block.textBlock.blocks.forEach(traverse);
     }
     if (block.tableBlock?.bodyRows) {
-      block.tableBlock.bodyRows.forEach(row => {
-        row.cells?.forEach(cell => {
+      block.tableBlock.bodyRows.forEach((row) => {
+        row.cells?.forEach((cell) => {
           cell.blocks?.forEach(traverse);
         });
       });
     }
     if (block.listBlock?.listEntries) {
-      block.listBlock.listEntries.forEach(entry => {
+      block.listBlock.listEntries.forEach((entry) => {
         entry.blocks?.forEach(traverse);
       });
     }
@@ -309,55 +329,60 @@ function getAllPageEnds(blocks: IDocumentLayoutBlock[]): number[] {
 /**
  * Process document page by page using corrected logic with superior formatting
  */
-export function processDocumentByPages(layout: IDocumentLayout, processingTime?: number): DocumentTextResult {
+export function processDocumentByPages(
+  layout: IDocumentLayout,
+  processingTime?: number,
+): DocumentTextResult {
   if (!layout.blocks) {
     return {
       pages: [],
       totalPages: 0,
-      processingTime
+      processingTime,
     };
   }
 
   // Flatten all blocks first to work with individual blocks, not hierarchy
   const allBlocks = flattenAllBlocks(layout.blocks);
 
-  // Calculate total pages 
+  // Calculate total pages
   const allPageEnds = getAllPageEnds(layout.blocks);
   const totalPages = allPageEnds.length > 0 ? Math.max(...allPageEnds) : 1;
 
   const pages: ProcessedPage[] = [];
-  
+
   // Process each page by filtering individual blocks, not hierarchical ones
   for (let i = 1; i <= totalPages; i++) {
     const pageNum = i;
-    
+
     // Get individual blocks that belong EXACTLY to this page
     const individualPageBlocks = allBlocks.filter((block) => {
       if (!block.pageSpan) {
         return false;
       }
       // Only include blocks that are specifically on this page
-      return (block.pageSpan.pageStart ?? 0) === pageNum && (block.pageSpan.pageEnd ?? 0) === pageNum;
+      return (
+        (block.pageSpan.pageStart ?? 0) === pageNum && (block.pageSpan.pageEnd ?? 0) === pageNum
+      );
     });
 
     // Apply the superior formatting logic from index.ts to these page-specific blocks
     const blockGroups = groupRelatedBlocks(individualPageBlocks);
     const sections = buildHierarchicalStructure(blockGroups);
-    
+
     // Format using the same logic as index.ts but for this page only
     const pageText = formatContentBlocksLikeIndex(sections);
 
     pages.push({
       pageNumber: pageNum,
       text: pageText.trim(),
-      sections
+      sections,
     });
   }
 
   return {
     pages,
     totalPages,
-    processingTime
+    processingTime,
   };
 }
 
@@ -366,13 +391,13 @@ export function processDocumentByPages(layout: IDocumentLayout, processingTime?:
  */
 export function formatTextWithPageDelimiters(result: DocumentTextResult): string {
   let output = '';
-  
+
   for (const page of result.pages) {
     output += `--- Page ${page.pageNumber} starts ---\n`;
     output += page.text;
     output += `\n--- Page ${page.pageNumber} ends ---\n\n`;
   }
-  
+
   return output;
 }
 
@@ -391,7 +416,7 @@ class DocumentFormatter {
 
     for (const page of result.pages) {
       markdown += `## Page ${page.pageNumber}\n\n`;
-      
+
       for (const section of page.sections) {
         switch (section.type) {
           case 'heading':
@@ -399,7 +424,7 @@ class DocumentFormatter {
             const level = Math.min(section.level || 1, 4) + 2; // h3-h6
             markdown += `${'#'.repeat(level)} ${section.content}\n\n`;
             if (section.children) {
-              section.children.forEach(child => {
+              section.children.forEach((child) => {
                 if (child.type === 'list-item') {
                   markdown += `- ${child.content}\n`;
                 } else {
@@ -438,7 +463,6 @@ class DocumentFormatter {
   }
 }
 
-
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(__filename);
@@ -464,7 +488,7 @@ export class DocumentAIProcessor {
 
     if (!this.processorId || !this.location || !this.projectId) {
       throw new Error(
-        'Missing required Document AI environment variables: DOCUMENT_AI_PROCESSOR_ID, DOCUMENT_AI_LOCATION, GOOGLE_CLOUD_PROJECT_ID'
+        'Missing required Document AI environment variables: DOCUMENT_AI_PROCESSOR_ID, DOCUMENT_AI_LOCATION, GOOGLE_CLOUD_PROJECT_ID',
       );
     }
 
@@ -513,17 +537,19 @@ export class DocumentAIProcessor {
 
       const processingTime = Date.now() - startTime;
       console.log(`✅ Processing completed in ${processingTime}ms`);
-      console.log(`📄 Document has ${document.pages?.length} pages and ${document.documentLayout.blocks.length} layout blocks`);
+      console.log(
+        `📄 Document has ${document.pages?.length} pages and ${document.documentLayout.blocks.length} layout blocks`,
+      );
 
       // Process document page by page using enhanced logic with superior formatting
       const documentResult = processDocumentByPages(document.documentLayout, processingTime);
-      
+
       // Generate multiple output formats
       const outputFormats = {
         textWithDelimiters: formatTextWithPageDelimiters(documentResult),
         json: DocumentFormatter.toJSON(documentResult),
         markdown: DocumentFormatter.toMarkdown(documentResult),
-        text: DocumentFormatter.toPlainText(documentResult)
+        text: DocumentFormatter.toPlainText(documentResult),
       };
 
       // Save all formats
@@ -545,18 +571,20 @@ export class DocumentAIProcessor {
       console.log(`🧱 Total blocks: ${document.documentLayout.blocks.length}`);
 
       console.log(`\n📖 PAGE BREAKDOWN:`);
-      documentResult.pages.forEach(page => {
-        console.log(`   Page ${page.pageNumber}: ${page.text.length} characters, ${page.sections.length} sections`);
+      documentResult.pages.forEach((page) => {
+        console.log(
+          `   Page ${page.pageNumber}: ${page.text.length} characters, ${page.sections.length} sections`,
+        );
       });
 
       // Content type analysis across all pages
       console.log(`\n📋 CONTENT TYPE ANALYSIS:`);
       const allContentTypes: Record<string, number> = {};
-      documentResult.pages.forEach(page => {
-        page.sections.forEach(section => {
+      documentResult.pages.forEach((page) => {
+        page.sections.forEach((section) => {
           allContentTypes[section.type] = (allContentTypes[section.type] || 0) + 1;
           if (section.children) {
-            section.children.forEach(child => {
+            section.children.forEach((child) => {
               allContentTypes[child.type] = (allContentTypes[child.type] || 0) + 1;
             });
           }
@@ -572,9 +600,10 @@ export class DocumentAIProcessor {
       console.log(`   - Processing time: ${processingTime}ms`);
       console.log(`   - ${documentResult.totalPages} pages processed with superior formatting`);
       console.log(`   - Content structure analyzed (headings, paragraphs, tables, lists)`);
-      console.log(`   - Multiple output formats: Text with delimiters, JSON, Markdown, Formatted text`);
+      console.log(
+        `   - Multiple output formats: Text with delimiters, JSON, Markdown, Formatted text`,
+      );
       console.log(`   - Correct page separation with enhanced text layout`);
-
     } catch (error: any) {
       console.error('💥 Top-level error occurred:');
       if (error.details) {
@@ -590,19 +619,18 @@ export class DocumentAIProcessor {
 async function main() {
   try {
     console.log('🤖 Google Document AI Layout Parser Example');
-    console.log('=' .repeat(50));
+    console.log('='.repeat(50));
 
     const processor = new DocumentAIProcessor();
-    
+
     // Get PDF path from command line argument or use default
     const pdfFileName = process.argv[2] || 'menu.pdf';
     // If the path is absolute, use it directly, otherwise join with parent directory
-    const pdfPath = path.isAbsolute(pdfFileName) 
-      ? pdfFileName 
+    const pdfPath = path.isAbsolute(pdfFileName)
+      ? pdfFileName
       : path.join(currentDir, '..', pdfFileName);
 
     await processor.processPdf(pdfPath);
-
   } catch (error) {
     console.error('💥 Error in main:', error);
     process.exit(1);
@@ -614,4 +642,3 @@ async function main() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   main();
 }
-

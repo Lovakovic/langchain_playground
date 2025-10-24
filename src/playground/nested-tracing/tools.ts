@@ -1,9 +1,9 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import { 
-  StructureAnalysisToolSchema, 
-  ItemExtractionToolSchema, 
+import {
+  StructureAnalysisToolSchema,
+  ItemExtractionToolSchema,
   CategoryEnrichmentToolSchema,
-  AllergenAnalysisToolSchema 
+  AllergenAnalysisToolSchema,
 } from './types';
 
 // Mock tools that simulate the complex tools from monkey-ai
@@ -14,7 +14,7 @@ export const createStructureAnalysisTool = () =>
     schema: StructureAnalysisToolSchema,
     func: async ({ sections }) => {
       // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       return { sections, analysisComplete: true };
     },
   });
@@ -26,7 +26,7 @@ export const createItemExtractionTool = () =>
     schema: ItemExtractionToolSchema,
     func: async ({ items }) => {
       // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 150));
       return { items, extractionComplete: true };
     },
   });
@@ -38,7 +38,7 @@ export const createCategoryEnrichmentTool = () =>
     schema: CategoryEnrichmentToolSchema,
     func: async ({ categorizedItems }) => {
       // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       return { categorizedItems, categorizationComplete: true };
     },
   });
@@ -50,7 +50,7 @@ export const createAllergenAnalysisTool = () =>
     schema: AllergenAnalysisToolSchema,
     func: async ({ allergenInfo }) => {
       // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 180));
+      await new Promise((resolve) => setTimeout(resolve, 180));
       return { allergenInfo, allergenAnalysisComplete: true };
     },
   });
@@ -62,11 +62,11 @@ export const createTranslationTool = () =>
     schema: ItemExtractionToolSchema, // Reuse schema for simplicity
     func: async ({ items }) => {
       // Simulate translation processing
-      await new Promise(resolve => setTimeout(resolve, 220));
-      const translatedItems = items.map(item => ({
+      await new Promise((resolve) => setTimeout(resolve, 220));
+      const translatedItems = items.map((item) => ({
         itemId: `${item.name}-id`,
         translatedName: `Translated: ${item.name}`,
-        translatedDescription: item.description ? `Translated: ${item.description}` : undefined
+        translatedDescription: item.description ? `Translated: ${item.description}` : undefined,
       }));
       return { translatedItems, translationComplete: true };
     },

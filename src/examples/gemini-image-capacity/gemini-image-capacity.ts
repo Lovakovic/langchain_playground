@@ -1,32 +1,32 @@
-import dotenv from "dotenv";
-import { HumanMessage } from "@langchain/core/messages";
-import { ChatVertexAI } from "@langchain/google-vertexai";
+import dotenv from 'dotenv';
+import { HumanMessage } from '@langchain/core/messages';
+import { ChatVertexAI } from '@langchain/google-vertexai';
 
 dotenv.config();
 
 async function fetchCatImage(): Promise<string> {
-  const response = await fetch("https://api.thecatapi.com/v1/images/search");
+  const response = await fetch('https://api.thecatapi.com/v1/images/search');
   const data = await response.json();
   const imageUrl = data[0].url;
-  
+
   // Fetch the actual image data
   const imageResponse = await fetch(imageUrl);
   const arrayBuffer = await imageResponse.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  
+
   // Convert to base64
-  return buffer.toString("base64");
+  return buffer.toString('base64');
 }
 
 const NUMBER_OF_IMAGES = 20; // Adjust this constant to test different numbers
 
 async function testGeminiWithMultipleImages() {
   console.log(`Testing Gemini with ${NUMBER_OF_IMAGES} cat images...\n`);
-  
-  if(!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
+
+  if (!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
-      "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
-      "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
+      'GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. ' +
+        "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file.",
     );
   }
 
@@ -36,52 +36,56 @@ async function testGeminiWithMultipleImages() {
     streaming: false,
     maxRetries: 2,
   });
-  
+
   try {
     // Fetch the required number of cat images
     console.log(`Fetching ${NUMBER_OF_IMAGES} cat images from API...`);
-    const imagePromises = Array(NUMBER_OF_IMAGES).fill(null).map(() => fetchCatImage());
+    const imagePromises = Array(NUMBER_OF_IMAGES)
+      .fill(null)
+      .map(() => fetchCatImage());
     const imageBase64Array = await Promise.all(imagePromises);
     console.log(`✓ Successfully fetched ${NUMBER_OF_IMAGES} images\n`);
-    
+
     // Create message content with multiple images
     const content: any[] = [
-      { type: "text", text: `Please describe all ${NUMBER_OF_IMAGES} cat images I'm showing you. For each image, provide a numbered description (1, 2, 3, etc.).` }
+      {
+        type: 'text',
+        text: `Please describe all ${NUMBER_OF_IMAGES} cat images I'm showing you. For each image, provide a numbered description (1, 2, 3, etc.).`,
+      },
     ];
-    
+
     // Add all images to the content with text between them
     imageBase64Array.forEach((imageBase64, index) => {
       // Add a text separator before each image (except the first)
       if (index > 0) {
         content.push({
-          type: "text",
-          text: `\n--- Image ${index + 1} of ${NUMBER_OF_IMAGES} ---\n`
+          type: 'text',
+          text: `\n--- Image ${index + 1} of ${NUMBER_OF_IMAGES} ---\n`,
         });
       }
       content.push({
-        type: "image_url",
-        image_url: { url: `data:image/jpeg;base64,${imageBase64}` }
+        type: 'image_url',
+        image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
       });
     });
-    
+
     // Create the message
     const message = new HumanMessage({ content });
-    
+
     // Send to Gemini
     console.log(`Sending ${NUMBER_OF_IMAGES} images to Gemini...`);
     const startTime = Date.now();
     const response = await model.invoke([message]);
     const endTime = Date.now();
-    
+
     console.log(`✓ Success! Response time: ${(endTime - startTime) / 1000}s`);
     console.log(`Response length: ${response.content.toString().length} characters\n`);
     console.log("=== Gemini's Response ===\n");
     console.log(response.content.toString());
-    
   } catch (error: any) {
     console.log(`✗ Failed with ${NUMBER_OF_IMAGES} images!`);
     console.log(`Error: ${error.message}\n`);
-    console.log("Full error details:", error);
+    console.log('Full error details:', error);
   }
 }
 

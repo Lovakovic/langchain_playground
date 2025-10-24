@@ -12,26 +12,36 @@ function createVertexAIModel(config: { model: string; temperature: number }) {
     temperature: config.temperature,
   });
 }
-import { CategoryEnrichmentState, AllergenEnrichmentState, TranslationEnrichmentState } from './states';
-import { _MockMenuItem, CustomEventTypes } from './types';
-import { createCategoryEnrichmentTool, createAllergenAnalysisTool, createTranslationTool } from './tools';
+import {
+  CategoryEnrichmentState,
+  AllergenEnrichmentState,
+  TranslationEnrichmentState,
+} from './states';
+import { CustomEventTypes } from './types';
+import {
+  createCategoryEnrichmentTool,
+  createAllergenAnalysisTool,
+  createTranslationTool,
+} from './tools';
 
 // Category Enrichment Subgraph
-async function categoryAnalysisNode(state: typeof CategoryEnrichmentState.State): Promise<Partial<typeof CategoryEnrichmentState.State>> {
+async function categoryAnalysisNode(
+  state: typeof CategoryEnrichmentState.State,
+): Promise<Partial<typeof CategoryEnrichmentState.State>> {
   const { extractedItems } = state;
-  
+
   // Dispatch custom event: Subgraph entry
   await dispatchCustomEvent(CustomEventTypes.SUBGRAPH_ENTERED, {
     subgraph: 'category_enrichment',
     node: 'category_analysis_node',
-    inputItemCount: extractedItems?.length || 0
+    inputItemCount: extractedItems?.length || 0,
   });
-  
+
   if (!extractedItems || extractedItems.length === 0) {
     await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
       error: 'No items to categorize',
       node: 'category_analysis_node',
-      expectedInput: 'extractedItems'
+      expectedInput: 'extractedItems',
     });
     return { categorizedItems: [], errorLog: ['No items to categorize'] };
   }
@@ -42,28 +52,36 @@ async function categoryAnalysisNode(state: typeof CategoryEnrichmentState.State)
       node: 'category_analysis_node',
       enrichmentType: 'category_classification',
       itemCount: extractedItems.length,
-      modelUsed: 'gemini-2.5-flash'
+      modelUsed: 'gemini-2.5-flash',
     });
 
     const categoryTool = createCategoryEnrichmentTool();
-    const model = createVertexAIModel({ model: 'gemini-2.5-flash', temperature: 0.2 })
-      .bindTools([categoryTool], { tool_choice: 'any' });
+    const model = createVertexAIModel({ model: 'gemini-2.5-flash', temperature: 0.2 }).bindTools(
+      [categoryTool],
+      { tool_choice: 'any' },
+    );
 
     console.log(`🏷️  Categorizing ${extractedItems.length} items...`);
 
     // Create mock categorization data
-    const mockCategorizedItems = extractedItems.map(item => ({
+    const mockCategorizedItems = extractedItems.map((item) => ({
       itemId: item.id,
-      category: item.section.toLowerCase().includes('pizza') ? 'main-dish' : 
-                item.section.toLowerCase().includes('drink') ? 'beverage' :
-                item.section.toLowerCase().includes('dessert') ? 'dessert' : 'appetizer',
-      confidence: Math.round((Math.random() * 0.3 + 0.7) * 100) / 100 // 0.7-1.0
+      category: item.section.toLowerCase().includes('pizza')
+        ? 'main-dish'
+        : item.section.toLowerCase().includes('drink')
+          ? 'beverage'
+          : item.section.toLowerCase().includes('dessert')
+            ? 'dessert'
+            : 'appetizer',
+      confidence: Math.round((Math.random() * 0.3 + 0.7) * 100) / 100, // 0.7-1.0
     }));
 
     const messages = [
-      new SystemMessage('Categorize the provided menu items into appropriate food categories. Use the tool to save categorization results.'),
-      new HumanMessage({ 
-        content: `Items to categorize: ${extractedItems.map(item => `${item.name} (${item.section})`).join(', ')}` 
+      new SystemMessage(
+        'Categorize the provided menu items into appropriate food categories. Use the tool to save categorization results.',
+      ),
+      new HumanMessage({
+        content: `Items to categorize: ${extractedItems.map((item) => `${item.name} (${item.section})`).join(', ')}`,
       }),
     ];
 
@@ -77,9 +95,11 @@ async function categoryAnalysisNode(state: typeof CategoryEnrichmentState.State)
         enrichmentType: 'category_classification',
         itemsProcessed: extractedItems.length,
         itemsCategorized: mockCategorizedItems.length,
-        categoriesAssigned: [...new Set(mockCategorizedItems.map(item => item.category))],
-        averageConfidence: mockCategorizedItems.reduce((sum, item) => sum + item.confidence, 0) / mockCategorizedItems.length,
-        toolCallSuccessful: true
+        categoriesAssigned: [...new Set(mockCategorizedItems.map((item) => item.category))],
+        averageConfidence:
+          mockCategorizedItems.reduce((sum, item) => sum + item.confidence, 0) /
+          mockCategorizedItems.length,
+        toolCallSuccessful: true,
       });
 
       console.log(`  ✅ Categorized ${mockCategorizedItems.length} items`);
@@ -89,7 +109,7 @@ async function categoryAnalysisNode(state: typeof CategoryEnrichmentState.State)
     await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
       error: 'Category analysis tool call failed',
       node: 'category_analysis_node',
-      toolCallName: toolCall?.name || 'none'
+      toolCallName: toolCall?.name || 'none',
     });
 
     return { categorizedItems: [], errorLog: ['Category analysis tool call failed'] };
@@ -98,15 +118,20 @@ async function categoryAnalysisNode(state: typeof CategoryEnrichmentState.State)
       error: (e as Error).message,
       node: 'category_analysis_node',
       enrichmentType: 'category_classification',
-      stack: (e as Error).stack
+      stack: (e as Error).stack,
     });
-    return { categorizedItems: [], errorLog: [`Category analysis failed: ${(e as Error).message}`] };
+    return {
+      categorizedItems: [],
+      errorLog: [`Category analysis failed: ${(e as Error).message}`],
+    };
   }
 }
 
 export function createCategoryEnrichmentSubgraph() {
-  const workflow = new StateGraph(CategoryEnrichmentState)
-    .addNode('category_analysis_node', categoryAnalysisNode);
+  const workflow = new StateGraph(CategoryEnrichmentState).addNode(
+    'category_analysis_node',
+    categoryAnalysisNode,
+  );
 
   workflow.addEdge(START, 'category_analysis_node');
   workflow.addEdge('category_analysis_node', END);
@@ -115,25 +140,27 @@ export function createCategoryEnrichmentSubgraph() {
 }
 
 // Allergen Enrichment Subgraph
-async function allergenAnalysisNode(state: typeof AllergenEnrichmentState.State): Promise<Partial<typeof AllergenEnrichmentState.State>> {
+async function allergenAnalysisNode(
+  state: typeof AllergenEnrichmentState.State,
+): Promise<Partial<typeof AllergenEnrichmentState.State>> {
   const { extractedItems } = state;
-  
+
   const startTime = Date.now();
-  
+
   // Dispatch custom event: Subgraph entry with performance tracking
   await dispatchCustomEvent(CustomEventTypes.SUBGRAPH_ENTERED, {
     subgraph: 'allergen_enrichment',
     node: 'allergen_analysis_node',
     inputItemCount: extractedItems?.length || 0,
-    startTime
+    startTime,
   });
-  
+
   if (!extractedItems || extractedItems.length === 0) {
     await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
       error: 'No items to analyze for allergens',
       node: 'allergen_analysis_node',
       expectedInput: 'extractedItems',
-      duration: Date.now() - startTime
+      duration: Date.now() - startTime,
     });
     return { allergenInfo: [], errorLog: ['No items to analyze for allergens'] };
   }
@@ -145,27 +172,31 @@ async function allergenAnalysisNode(state: typeof AllergenEnrichmentState.State)
       enrichmentType: 'allergen_analysis',
       itemCount: extractedItems.length,
       modelUsed: 'gemini-2.5-flash',
-      performanceTracking: true
+      performanceTracking: true,
     });
 
     const allergenTool = createAllergenAnalysisTool();
-    const model = createVertexAIModel({ model: 'gemini-2.5-flash', temperature: 0.1 })
-      .bindTools([allergenTool], { tool_choice: 'any' });
+    const model = createVertexAIModel({ model: 'gemini-2.5-flash', temperature: 0.1 }).bindTools(
+      [allergenTool],
+      { tool_choice: 'any' },
+    );
 
     console.log(`🥜 Analyzing allergens for ${extractedItems.length} items...`);
 
     // Create mock allergen data
     const commonAllergens = ['gluten', 'dairy', 'nuts', 'eggs', 'soy'];
-    const mockAllergenInfo = extractedItems.map(item => ({
+    const mockAllergenInfo = extractedItems.map((item) => ({
       itemId: item.id,
       allergens: commonAllergens.filter(() => Math.random() > 0.7), // Random allergens
-      confidence: Math.round((Math.random() * 0.2 + 0.8) * 100) / 100 // 0.8-1.0
+      confidence: Math.round((Math.random() * 0.2 + 0.8) * 100) / 100, // 0.8-1.0
     }));
 
     const messages = [
-      new SystemMessage('Analyze the menu items for potential allergen content. Use the tool to save allergen analysis results.'),
-      new HumanMessage({ 
-        content: `Items to analyze: ${extractedItems.map(item => `${item.name}: ${item.description || 'No description'}`).join('; ')}` 
+      new SystemMessage(
+        'Analyze the menu items for potential allergen content. Use the tool to save allergen analysis results.',
+      ),
+      new HumanMessage({
+        content: `Items to analyze: ${extractedItems.map((item) => `${item.name}: ${item.description || 'No description'}`).join('; ')}`,
       }),
     ];
 
@@ -176,7 +207,7 @@ async function allergenAnalysisNode(state: typeof AllergenEnrichmentState.State)
 
     if (toolCall?.name === 'analyze_allergens') {
       const totalDuration = Date.now() - startTime;
-      
+
       // Dispatch enrichment completion with performance metrics
       await dispatchCustomEvent(CustomEventTypes.ENRICHMENT_COMPLETED, {
         node: 'allergen_analysis_node',
@@ -184,14 +215,16 @@ async function allergenAnalysisNode(state: typeof AllergenEnrichmentState.State)
         itemsProcessed: extractedItems.length,
         itemsAnalyzed: mockAllergenInfo.length,
         allergenDetections: mockAllergenInfo.reduce((sum, item) => sum + item.allergens.length, 0),
-        averageConfidence: mockAllergenInfo.reduce((sum, item) => sum + item.confidence, 0) / mockAllergenInfo.length,
+        averageConfidence:
+          mockAllergenInfo.reduce((sum, item) => sum + item.confidence, 0) /
+          mockAllergenInfo.length,
         toolCallSuccessful: true,
         performanceMetrics: {
           totalDuration,
           llmDuration,
           processingRate: extractedItems.length / (totalDuration / 1000), // items per second
-          averageTimePerItem: totalDuration / extractedItems.length
-        }
+          averageTimePerItem: totalDuration / extractedItems.length,
+        },
       });
 
       console.log(`  ✅ Analyzed allergens for ${mockAllergenInfo.length} items`);
@@ -202,7 +235,7 @@ async function allergenAnalysisNode(state: typeof AllergenEnrichmentState.State)
       error: 'Allergen analysis tool call failed',
       node: 'allergen_analysis_node',
       toolCallName: toolCall?.name || 'none',
-      duration: Date.now() - startTime
+      duration: Date.now() - startTime,
     });
 
     return { allergenInfo: [], errorLog: ['Allergen analysis tool call failed'] };
@@ -212,15 +245,17 @@ async function allergenAnalysisNode(state: typeof AllergenEnrichmentState.State)
       node: 'allergen_analysis_node',
       enrichmentType: 'allergen_analysis',
       duration: Date.now() - startTime,
-      stack: (e as Error).stack
+      stack: (e as Error).stack,
     });
     return { allergenInfo: [], errorLog: [`Allergen analysis failed: ${(e as Error).message}`] };
   }
 }
 
 export function createAllergenEnrichmentSubgraph() {
-  const workflow = new StateGraph(AllergenEnrichmentState)
-    .addNode('allergen_analysis_node', allergenAnalysisNode);
+  const workflow = new StateGraph(AllergenEnrichmentState).addNode(
+    'allergen_analysis_node',
+    allergenAnalysisNode,
+  );
 
   workflow.addEdge(START, 'allergen_analysis_node');
   workflow.addEdge('allergen_analysis_node', END);
@@ -229,22 +264,24 @@ export function createAllergenEnrichmentSubgraph() {
 }
 
 // Translation Enrichment Subgraph
-async function translationNode(state: typeof TranslationEnrichmentState.State): Promise<Partial<typeof TranslationEnrichmentState.State>> {
+async function translationNode(
+  state: typeof TranslationEnrichmentState.State,
+): Promise<Partial<typeof TranslationEnrichmentState.State>> {
   const { extractedItems } = state;
-  
+
   // Dispatch custom event: Subgraph entry
   await dispatchCustomEvent(CustomEventTypes.SUBGRAPH_ENTERED, {
     subgraph: 'translation_enrichment',
     node: 'translation_node',
     inputItemCount: extractedItems?.length || 0,
-    targetLanguage: 'english'
+    targetLanguage: 'english',
   });
-  
+
   if (!extractedItems || extractedItems.length === 0) {
     await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
       error: 'No items to translate',
       node: 'translation_node',
-      expectedInput: 'extractedItems'
+      expectedInput: 'extractedItems',
     });
     return { translatedItems: [], errorLog: ['No items to translate'] };
   }
@@ -257,21 +294,25 @@ async function translationNode(state: typeof TranslationEnrichmentState.State): 
       itemCount: extractedItems.length,
       sourceLanguage: 'auto-detect',
       targetLanguage: 'english',
-      modelUsed: 'gemini-2.5-flash'
+      modelUsed: 'gemini-2.5-flash',
     });
 
     const translationTool = createTranslationTool();
-    const model = createVertexAIModel({ model: 'gemini-2.5-flash', temperature: 0.3 })
-      .bindTools([translationTool], { tool_choice: 'any' });
+    const model = createVertexAIModel({ model: 'gemini-2.5-flash', temperature: 0.3 }).bindTools(
+      [translationTool],
+      { tool_choice: 'any' },
+    );
 
     console.log(`🌐 Translating ${extractedItems.length} items...`);
 
     const messages = [
-      new SystemMessage('Translate the menu items to English. Use the tool to save translation results.'),
-      new HumanMessage({ 
-        content: `Items to translate: ${extractedItems.map(item => 
-          `${item.name}${item.description ? ` - ${item.description}` : ''}`
-        ).join('; ')}` 
+      new SystemMessage(
+        'Translate the menu items to English. Use the tool to save translation results.',
+      ),
+      new HumanMessage({
+        content: `Items to translate: ${extractedItems
+          .map((item) => `${item.name}${item.description ? ` - ${item.description}` : ''}`)
+          .join('; ')}`,
       }),
     ];
 
@@ -280,10 +321,10 @@ async function translationNode(state: typeof TranslationEnrichmentState.State): 
 
     if (toolCall?.name === 'translate_content') {
       // The tool should return translated items, but we'll create mock data
-      const mockTranslatedItems = extractedItems.map(item => ({
+      const mockTranslatedItems = extractedItems.map((item) => ({
         itemId: item.id,
         translatedName: `EN: ${item.name}`,
-        translatedDescription: item.description ? `EN: ${item.description}` : undefined
+        translatedDescription: item.description ? `EN: ${item.description}` : undefined,
       }));
 
       // Dispatch enrichment completion event
@@ -294,9 +335,10 @@ async function translationNode(state: typeof TranslationEnrichmentState.State): 
         itemsTranslated: mockTranslatedItems.length,
         translationCoverage: {
           namesTranslated: mockTranslatedItems.length,
-          descriptionsTranslated: mockTranslatedItems.filter(item => item.translatedDescription).length
+          descriptionsTranslated: mockTranslatedItems.filter((item) => item.translatedDescription)
+            .length,
         },
-        toolCallSuccessful: true
+        toolCallSuccessful: true,
       });
 
       console.log(`  ✅ Translated ${mockTranslatedItems.length} items`);
@@ -306,7 +348,7 @@ async function translationNode(state: typeof TranslationEnrichmentState.State): 
     await dispatchCustomEvent(CustomEventTypes.VALIDATION_FAILED, {
       error: 'Translation tool call failed',
       node: 'translation_node',
-      toolCallName: toolCall?.name || 'none'
+      toolCallName: toolCall?.name || 'none',
     });
 
     return { translatedItems: [], errorLog: ['Translation tool call failed'] };
@@ -315,15 +357,17 @@ async function translationNode(state: typeof TranslationEnrichmentState.State): 
       error: (e as Error).message,
       node: 'translation_node',
       enrichmentType: 'translation',
-      stack: (e as Error).stack
+      stack: (e as Error).stack,
     });
     return { translatedItems: [], errorLog: [`Translation failed: ${(e as Error).message}`] };
   }
 }
 
 export function createTranslationEnrichmentSubgraph() {
-  const workflow = new StateGraph(TranslationEnrichmentState)
-    .addNode('translation_node', translationNode);
+  const workflow = new StateGraph(TranslationEnrichmentState).addNode(
+    'translation_node',
+    translationNode,
+  );
 
   workflow.addEdge(START, 'translation_node');
   workflow.addEdge('translation_node', END);

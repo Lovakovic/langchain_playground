@@ -15,10 +15,10 @@
  * IMPORTANT: Abort support requires @langchain/core>=0.2.20
  */
 
-import {Annotation, GraphRecursionError, MemorySaver, StateGraph} from "@langchain/langgraph";
-import {AIMessage, BaseMessage, HumanMessage} from "@langchain/core/messages";
-import { randomUUID } from "crypto";
-import dotenv from "dotenv";
+import { Annotation, GraphRecursionError, MemorySaver, StateGraph } from '@langchain/langgraph';
+import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { randomUUID } from 'crypto';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -28,43 +28,43 @@ dotenv.config();
 const ProcessingState = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
     reducer: (current, update) => [...current, ...update],
-    default: () => []
+    default: () => [],
   }),
   currentStep: Annotation<string>,
   processedData: Annotation<string[]>({
     reducer: (current, update) => [...current, ...update],
-    default: () => []
+    default: () => [],
   }),
   isComplete: Annotation<boolean>,
   // New fields for timeout examples
   iterationCount: Annotation<number>({
     reducer: (current, update) => current + update,
-    default: () => 0
+    default: () => 0,
   }),
   resourcesUsed: Annotation<number>({
     reducer: (current, update) => current + update,
-    default: () => 0
-  })
+    default: () => 0,
+  }),
 });
 
 /**
  * Node 1: Simulates data fetching that takes time
  */
 async function fetchData(state: typeof ProcessingState.State) {
-  console.log("📡 [Step 1] Starting data fetch...");
+  console.log('📡 [Step 1] Starting data fetch...');
 
   for (let i = 1; i <= 5; i++) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     console.log(`   Fetching batch ${i}/5...`);
   }
 
-  console.log("✅ Data fetch complete!");
+  console.log('✅ Data fetch complete!');
 
   return {
-    currentStep: "fetched",
-    processedData: ["batch1", "batch2", "batch3", "batch4", "batch5"],
-    messages: [new AIMessage("Data fetching completed successfully")],
-    resourcesUsed: state.resourcesUsed + 5
+    currentStep: 'fetched',
+    processedData: ['batch1', 'batch2', 'batch3', 'batch4', 'batch5'],
+    messages: [new AIMessage('Data fetching completed successfully')],
+    resourcesUsed: state.resourcesUsed + 5,
   };
 }
 
@@ -72,20 +72,20 @@ async function fetchData(state: typeof ProcessingState.State) {
  * Node 2: Processes the fetched data
  */
 async function processData(state: typeof ProcessingState.State) {
-  console.log("⚙️  [Step 2] Starting data processing...");
+  console.log('⚙️  [Step 2] Starting data processing...');
 
   for (let i = 0; i < state.processedData.length; i++) {
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise((resolve) => setTimeout(resolve, 800));
     console.log(`   Processing ${state.processedData[i]}...`);
   }
 
-  console.log("✅ Data processing complete!");
+  console.log('✅ Data processing complete!');
 
   return {
-    currentStep: "processed",
-    processedData: state.processedData.map(d => `processed_${d}`),
-    messages: [new AIMessage("Data processing completed successfully")],
-    resourcesUsed: state.resourcesUsed + state.processedData.length
+    currentStep: 'processed',
+    processedData: state.processedData.map((d) => `processed_${d}`),
+    messages: [new AIMessage('Data processing completed successfully')],
+    resourcesUsed: state.resourcesUsed + state.processedData.length,
   };
 }
 
@@ -93,21 +93,21 @@ async function processData(state: typeof ProcessingState.State) {
  * Node 3: Saves the processed results
  */
 async function saveResults(state: typeof ProcessingState.State) {
-  console.log("💾 [Step 3] Saving results...");
+  console.log('💾 [Step 3] Saving results...');
 
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  console.log("   Writing to database...");
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  console.log('   Writing to database...');
 
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  console.log("   Updating cache...");
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  console.log('   Updating cache...');
 
-  console.log("✅ Results saved!");
+  console.log('✅ Results saved!');
 
   return {
-    currentStep: "completed",
+    currentStep: 'completed',
     isComplete: true,
-    messages: [new AIMessage("Results saved successfully")],
-    resourcesUsed: state.resourcesUsed + 2
+    messages: [new AIMessage('Results saved successfully')],
+    resourcesUsed: state.resourcesUsed + 2,
   };
 }
 
@@ -116,13 +116,13 @@ async function saveResults(state: typeof ProcessingState.State) {
  */
 function createProcessingGraph() {
   const workflow = new StateGraph(ProcessingState)
-    .addNode("fetch_data", fetchData)
-    .addNode("process_data", processData)
-    .addNode("save_results", saveResults)
-    .addEdge("__start__", "fetch_data")
-    .addEdge("fetch_data", "process_data")
-    .addEdge("process_data", "save_results")
-    .addEdge("save_results", "__end__");
+    .addNode('fetch_data', fetchData)
+    .addNode('process_data', processData)
+    .addNode('save_results', saveResults)
+    .addEdge('__start__', 'fetch_data')
+    .addEdge('fetch_data', 'process_data')
+    .addEdge('process_data', 'save_results')
+    .addEdge('save_results', '__end__');
 
   const checkpointer = new MemorySaver();
   return workflow.compile({ checkpointer });
@@ -134,25 +134,25 @@ function createProcessingGraph() {
 function createLoopingGraph() {
   async function incrementNode(state: typeof ProcessingState.State) {
     console.log(`🔄 Iteration ${state.iterationCount + 1}`);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     return {
       iterationCount: state.iterationCount + 1,
-      messages: [new AIMessage(`Completed iteration ${state.iterationCount + 1}`)]
+      messages: [new AIMessage(`Completed iteration ${state.iterationCount + 1}`)],
     };
   }
 
   function shouldContinue(state: typeof ProcessingState.State) {
     // This creates an infinite loop unless stopped by recursion limit
-    return state.iterationCount < 100 ? "increment" : "__end__";
+    return state.iterationCount < 100 ? 'increment' : '__end__';
   }
 
   const workflow = new StateGraph(ProcessingState)
-    .addNode("increment", incrementNode)
-    .addEdge("__start__", "increment")
-    .addConditionalEdges("increment", shouldContinue, {
-      increment: "increment",
-      __end__: "__end__"
+    .addNode('increment', incrementNode)
+    .addEdge('__start__', 'increment')
+    .addConditionalEdges('increment', shouldContinue, {
+      increment: 'increment',
+      __end__: '__end__',
     });
 
   return workflow.compile({ checkpointer: new MemorySaver() });
@@ -164,39 +164,42 @@ function createLoopingGraph() {
  * The simplest way to add a timeout - using the built-in static method
  */
 async function example1_basicTimeout() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 EXAMPLE 1: Basic Timeout with AbortSignal.timeout()");
-  console.log("=".repeat(60) + "\n");
+  console.log('\n' + '='.repeat(60));
+  console.log('📋 EXAMPLE 1: Basic Timeout with AbortSignal.timeout()');
+  console.log('='.repeat(60) + '\n');
 
   const graph = createProcessingGraph();
   const threadId = `timeout-basic-${Date.now()}`;
   const timeoutMs = 6000; // 6 seconds - will timeout during processing
 
   console.log(`⏰ Setting timeout to ${timeoutMs}ms`);
-  console.log("Expected: Should timeout during data processing step\n");
+  console.log('Expected: Should timeout during data processing step\n');
 
   const startTime = Date.now();
 
   try {
     // Using AbortSignal.timeout() - the simplest approach
     await graph.invoke(
-      { messages: [new HumanMessage("Start processing")] },
+      { messages: [new HumanMessage('Start processing')] },
       {
         configurable: { thread_id: threadId },
-        signal: AbortSignal.timeout(timeoutMs) // <-- Simple timeout!
-      }
+        signal: AbortSignal.timeout(timeoutMs), // <-- Simple timeout!
+      },
     );
 
-    console.log("\n✨ Execution completed before timeout");
-
+    console.log('\n✨ Execution completed before timeout');
   } catch (error: any) {
     const duration = Date.now() - startTime;
 
-    if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted') {
+    if (
+      error.name === 'TimeoutError' ||
+      error.name === 'AbortError' ||
+      error.message === 'Aborted'
+    ) {
       console.log(`\n⏱️  Execution timed out after ${(duration / 1000).toFixed(2)}s`);
-      console.log("This is expected behavior - the timeout worked!");
+      console.log('This is expected behavior - the timeout worked!');
     } else {
-      console.error("\n❌ Unexpected error:", error);
+      console.error('\n❌ Unexpected error:', error);
     }
   }
 }
@@ -207,48 +210,51 @@ async function example1_basicTimeout() {
  * More control - can clear timeout on success
  */
 async function example2_manualTimeout() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 EXAMPLE 2: Manual Timeout with AbortController");
-  console.log("=".repeat(60) + "\n");
+  console.log('\n' + '='.repeat(60));
+  console.log('📋 EXAMPLE 2: Manual Timeout with AbortController');
+  console.log('='.repeat(60) + '\n');
 
   const graph = createProcessingGraph();
   const threadId = `timeout-manual-${Date.now()}`;
   const timeoutMs = 8000; // 8 seconds - might complete or timeout
 
   console.log(`⏰ Setting manual timeout to ${timeoutMs}ms`);
-  console.log("Expected: Might complete or timeout during save step\n");
+  console.log('Expected: Might complete or timeout during save step\n');
 
   const controller = new AbortController();
   const startTime = Date.now();
 
   // Set up timeout
   const timeoutId = setTimeout(() => {
-    console.log("\n⚠️  Timeout triggered!");
-    controller.abort(new Error("Operation timed out"));
+    console.log('\n⚠️  Timeout triggered!');
+    controller.abort(new Error('Operation timed out'));
   }, timeoutMs);
 
   try {
     await graph.invoke(
-      { messages: [new HumanMessage("Start processing")] },
+      { messages: [new HumanMessage('Start processing')] },
       {
         configurable: { thread_id: threadId },
-        signal: controller.signal
-      }
+        signal: controller.signal,
+      },
     );
 
     // Important: Clear timeout on success!
     clearTimeout(timeoutId);
     const duration = Date.now() - startTime;
     console.log(`\n✨ Completed successfully in ${(duration / 1000).toFixed(2)}s`);
-
   } catch (error: any) {
     clearTimeout(timeoutId);
     const duration = Date.now() - startTime;
 
-    if (error.name === 'AbortError' || error.message === 'Operation timed out' || error.message === 'Aborted') {
+    if (
+      error.name === 'AbortError' ||
+      error.message === 'Operation timed out' ||
+      error.message === 'Aborted'
+    ) {
       console.log(`\n⏱️  Timed out after ${(duration / 1000).toFixed(2)}s`);
     } else {
-      console.error("\n❌ Unexpected error:", error);
+      console.error('\n❌ Unexpected error:', error);
     }
   }
 }
@@ -259,42 +265,45 @@ async function example2_manualTimeout() {
  * Shows how to use both step-based and time-based limits
  */
 async function example3_combinedLimits() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 EXAMPLE 3: Combined Recursion Limit + Timeout");
-  console.log("=".repeat(60) + "\n");
+  console.log('\n' + '='.repeat(60));
+  console.log('📋 EXAMPLE 3: Combined Recursion Limit + Timeout');
+  console.log('='.repeat(60) + '\n');
 
   const graph = createLoopingGraph();
   const threadId = `combined-${Date.now()}`;
 
-  console.log("⏰ Timeout: 3000ms");
-  console.log("🔢 Recursion limit: 10 steps");
-  console.log("Expected: Should hit recursion limit first\n");
+  console.log('⏰ Timeout: 3000ms');
+  console.log('🔢 Recursion limit: 10 steps');
+  console.log('Expected: Should hit recursion limit first\n');
 
   const startTime = Date.now();
 
   try {
     const result = await graph.invoke(
-      { messages: [new HumanMessage("Start loop")] },
+      { messages: [new HumanMessage('Start loop')] },
       {
         configurable: { thread_id: threadId },
         signal: AbortSignal.timeout(3000), // 3 second timeout
-        recursionLimit: 10 // Maximum 10 iterations
-      }
+        recursionLimit: 10, // Maximum 10 iterations
+      },
     );
 
-    console.log("\n✨ Completed successfully");
+    console.log('\n✨ Completed successfully');
     console.log(`Final iteration count: ${result.iterationCount}`);
-
   } catch (error: any) {
     const duration = Date.now() - startTime;
 
     if (error instanceof GraphRecursionError) {
       console.log(`\n🔢 Hit recursion limit after ${(duration / 1000).toFixed(2)}s`);
-      console.log("The step limit was reached before the timeout");
-    } else if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted') {
+      console.log('The step limit was reached before the timeout');
+    } else if (
+      error.name === 'TimeoutError' ||
+      error.name === 'AbortError' ||
+      error.message === 'Aborted'
+    ) {
       console.log(`\n⏱️  Hit timeout after ${(duration / 1000).toFixed(2)}s`);
     } else {
-      console.error("\n❌ Unexpected error:", error);
+      console.error('\n❌ Unexpected error:', error);
     }
   }
 }
@@ -305,16 +314,18 @@ async function example3_combinedLimits() {
  * Retries with increasing timeouts
  */
 async function example4_progressiveTimeout() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 EXAMPLE 4: Progressive Timeout Strategy");
-  console.log("=".repeat(60) + "\n");
+  console.log('\n' + '='.repeat(60));
+  console.log('📋 EXAMPLE 4: Progressive Timeout Strategy');
+  console.log('='.repeat(60) + '\n');
 
   const graph = createProcessingGraph();
   const baseTimeout = 2000; // Start with 2 seconds
   const maxAttempts = 3;
 
-  console.log(`📈 Progressive timeouts: ${baseTimeout}ms, ${baseTimeout * 2}ms, ${baseTimeout * 4}ms`);
-  console.log("Expected: First attempts fail, last one succeeds\n");
+  console.log(
+    `📈 Progressive timeouts: ${baseTimeout}ms, ${baseTimeout * 2}ms, ${baseTimeout * 4}ms`,
+  );
+  console.log('Expected: First attempts fail, last one succeeds\n');
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const timeout = baseTimeout * Math.pow(2, attempt - 1);
@@ -326,28 +337,31 @@ async function example4_progressiveTimeout() {
 
     try {
       await graph.invoke(
-        { messages: [new HumanMessage("Start processing")] },
+        { messages: [new HumanMessage('Start processing')] },
         {
           configurable: { thread_id: threadId },
-          signal: AbortSignal.timeout(timeout)
-        }
+          signal: AbortSignal.timeout(timeout),
+        },
       );
 
       const duration = Date.now() - startTime;
       console.log(`✅ Success on attempt ${attempt} after ${(duration / 1000).toFixed(2)}s`);
       break; // Success, exit loop
-
     } catch (error: any) {
       const duration = Date.now() - startTime;
 
-      if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted') {
+      if (
+        error.name === 'TimeoutError' ||
+        error.name === 'AbortError' ||
+        error.message === 'Aborted'
+      ) {
         console.log(`⏱️  Attempt ${attempt} timed out after ${(duration / 1000).toFixed(2)}s`);
 
         if (attempt === maxAttempts) {
-          console.log("\n❌ All attempts exhausted");
+          console.log('\n❌ All attempts exhausted');
         }
       } else {
-        console.error("❌ Unexpected error:", error);
+        console.error('❌ Unexpected error:', error);
         break;
       }
     }
@@ -360,16 +374,16 @@ async function example4_progressiveTimeout() {
  * Combines manual cancellation with automatic timeout
  */
 async function example5_userCancellableWithTimeout() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 EXAMPLE 5: User-Cancellable + Timeout Fallback");
-  console.log("=".repeat(60) + "\n");
+  console.log('\n' + '='.repeat(60));
+  console.log('📋 EXAMPLE 5: User-Cancellable + Timeout Fallback');
+  console.log('='.repeat(60) + '\n');
 
   const graph = createProcessingGraph();
   const threadId = `user-cancel-${Date.now()}`;
 
-  console.log("🔘 User can cancel at any time");
-  console.log("⏰ Automatic timeout after 15 seconds");
-  console.log("Expected: Will simulate user cancellation after 4 seconds\n");
+  console.log('🔘 User can cancel at any time');
+  console.log('⏰ Automatic timeout after 15 seconds');
+  console.log('Expected: Will simulate user cancellation after 4 seconds\n');
 
   // Create separate controllers
   const userController = new AbortController();
@@ -377,29 +391,25 @@ async function example5_userCancellableWithTimeout() {
 
   // Simulate user pressing cancel after 4 seconds
   setTimeout(() => {
-    console.log("\n👤 USER PRESSED CANCEL!");
-    userController.abort(new Error("User cancelled"));
+    console.log('\n👤 USER PRESSED CANCEL!');
+    userController.abort(new Error('User cancelled'));
   }, 4000);
 
   const startTime = Date.now();
 
   try {
     // Combine signals - aborts if either triggers
-    const combinedSignal = AbortSignal.any([
-      userController.signal,
-      timeoutSignal
-    ]);
+    const combinedSignal = AbortSignal.any([userController.signal, timeoutSignal]);
 
     await graph.invoke(
-      { messages: [new HumanMessage("Start processing")] },
+      { messages: [new HumanMessage('Start processing')] },
       {
         configurable: { thread_id: threadId },
-        signal: combinedSignal
-      }
+        signal: combinedSignal,
+      },
     );
 
-    console.log("\n✨ Completed successfully");
-
+    console.log('\n✨ Completed successfully');
   } catch (error: any) {
     const duration = Date.now() - startTime;
 
@@ -408,7 +418,7 @@ async function example5_userCancellableWithTimeout() {
     } else if (error.name === 'TimeoutError') {
       console.log(`\n⏱️  Automatic timeout after ${(duration / 1000).toFixed(2)}s`);
     } else {
-      console.error("\n❌ Unexpected error:", error);
+      console.error('\n❌ Unexpected error:', error);
     }
   }
 }
@@ -419,16 +429,16 @@ async function example5_userCancellableWithTimeout() {
  * Cancel when resource usage exceeds limit
  */
 async function example6_resourceBasedCancellation() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 EXAMPLE 6: Resource-Based Cancellation");
-  console.log("=".repeat(60) + "\n");
+  console.log('\n' + '='.repeat(60));
+  console.log('📋 EXAMPLE 6: Resource-Based Cancellation');
+  console.log('='.repeat(60) + '\n');
 
   const graph = createProcessingGraph();
   const threadId = `resource-${Date.now()}`;
 
   const resourceLimit = 8;
   console.log(`📊 Resource limit: ${resourceLimit} units`);
-  console.log("Expected: Should cancel when resources exceed limit\n");
+  console.log('Expected: Should cancel when resources exceed limit\n');
 
   const resourceController = new AbortController();
   const checkInterval = 500; // Check every 500ms
@@ -437,14 +447,15 @@ async function example6_resourceBasedCancellation() {
   const resourceMonitor = setInterval(async () => {
     try {
       const state = await graph.getState({
-        configurable: { thread_id: threadId }
+        configurable: { thread_id: threadId },
       });
 
       if (state && state.values && typeof state.values.resourcesUsed === 'number') {
-        lastResourceCheck = state.values.resourcesUsed;
         if (state.values.resourcesUsed > resourceLimit) {
-          console.log(`\n📊 Resource limit exceeded: ${state.values.resourcesUsed}/${resourceLimit}`);
-          resourceController.abort(new Error("Resource limit exceeded"));
+          console.log(
+            `\n📊 Resource limit exceeded: ${state.values.resourcesUsed}/${resourceLimit}`,
+          );
+          resourceController.abort(new Error('Resource limit exceeded'));
           clearInterval(resourceMonitor);
         }
       }
@@ -457,27 +468,26 @@ async function example6_resourceBasedCancellation() {
 
   try {
     const result = await graph.invoke(
-      { messages: [new HumanMessage("Start processing")] },
+      { messages: [new HumanMessage('Start processing')] },
       {
         configurable: { thread_id: threadId },
-        signal: resourceController.signal
-      }
+        signal: resourceController.signal,
+      },
     );
 
     clearInterval(resourceMonitor);
-    console.log("\n✨ Completed within resource limits");
+    console.log('\n✨ Completed within resource limits');
     console.log(`Resources used: ${result.resourcesUsed || 0}`);
-
   } catch (error: any) {
     clearInterval(resourceMonitor);
     const duration = Date.now() - startTime;
 
-    if (error.message === "Resource limit exceeded") {
+    if (error.message === 'Resource limit exceeded') {
       console.log(`\n📊 Cancelled due to resource limit after ${(duration / 1000).toFixed(2)}s`);
     } else if (error.name === 'AbortError' || error.message === 'Aborted') {
       console.log(`\n📊 Cancelled due to resource limit after ${(duration / 1000).toFixed(2)}s`);
     } else {
-      console.error("\n❌ Unexpected error:", error);
+      console.error('\n❌ Unexpected error:', error);
     }
   }
 }
@@ -488,44 +498,47 @@ async function example6_resourceBasedCancellation() {
  * Shows timeout works with streaming too
  */
 async function example7_streamingWithTimeout() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 EXAMPLE 7: Streaming with Timeout");
-  console.log("=".repeat(60) + "\n");
+  console.log('\n' + '='.repeat(60));
+  console.log('📋 EXAMPLE 7: Streaming with Timeout');
+  console.log('='.repeat(60) + '\n');
 
   const graph = createProcessingGraph();
   const threadId = `streaming-timeout-${Date.now()}`;
   const timeoutMs = 7000;
 
   console.log(`⏰ Streaming with ${timeoutMs}ms timeout`);
-  console.log("Expected: Should receive some chunks before timeout\n");
+  console.log('Expected: Should receive some chunks before timeout\n');
 
   const startTime = Date.now();
 
   try {
     const stream = await graph.stream(
-      { messages: [new HumanMessage("Start processing")] },
+      { messages: [new HumanMessage('Start processing')] },
       {
         configurable: { thread_id: threadId },
-        signal: AbortSignal.timeout(timeoutMs)
-      }
+        signal: AbortSignal.timeout(timeoutMs),
+      },
     );
 
-    console.log("📡 Streaming results:\n");
+    console.log('📡 Streaming results:\n');
 
     for await (const chunk of stream) {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       console.log(`[${elapsed}s] Received chunk:`, Object.keys(chunk)[0]);
     }
 
-    console.log("\n✨ Stream completed successfully");
-
+    console.log('\n✨ Stream completed successfully');
   } catch (error: any) {
     const duration = Date.now() - startTime;
 
-    if (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted') {
+    if (
+      error.name === 'TimeoutError' ||
+      error.name === 'AbortError' ||
+      error.message === 'Aborted'
+    ) {
       console.log(`\n⏱️  Stream timed out after ${(duration / 1000).toFixed(2)}s`);
     } else {
-      console.error("\n❌ Unexpected error:", error);
+      console.error('\n❌ Unexpected error:', error);
     }
   }
 }
@@ -534,7 +547,8 @@ async function example7_streamingWithTimeout() {
  * Utility: Create a timeout manager class for reusable timeout logic
  */
 class TimeoutManager {
-  private activeOperations: Map<string, { controller: AbortController; timeout?: NodeJS.Timeout }> = new Map();
+  private activeOperations: Map<string, { controller: AbortController; timeout?: NodeJS.Timeout }> =
+    new Map();
 
   async runWithTimeout<T>(
     operation: (signal: AbortSignal) => Promise<T>,
@@ -542,20 +556,16 @@ class TimeoutManager {
       timeoutMs?: number;
       operationId?: string;
       onTimeout?: () => void;
-    } = {}
+    } = {},
   ): Promise<T> {
-    const {
-      timeoutMs = 30000,
-      operationId = randomUUID(),
-      onTimeout
-    } = options;
+    const { timeoutMs = 30000, operationId = randomUUID(), onTimeout } = options;
 
     const controller = new AbortController();
     let timeoutId: NodeJS.Timeout | undefined;
 
     if (timeoutMs > 0) {
       timeoutId = setTimeout(() => {
-        controller.abort(new Error("Timeout"));
+        controller.abort(new Error('Timeout'));
         if (onTimeout) onTimeout();
       }, timeoutMs);
     }
@@ -575,14 +585,14 @@ class TimeoutManager {
   cancel(operationId: string) {
     const operation = this.activeOperations.get(operationId);
     if (operation) {
-      operation.controller.abort(new Error("Manually cancelled"));
+      operation.controller.abort(new Error('Manually cancelled'));
       this.cleanup(operationId);
     }
   }
 
   cancelAll() {
     for (const [_id, operation] of this.activeOperations) {
-      operation.controller.abort(new Error("All operations cancelled"));
+      operation.controller.abort(new Error('All operations cancelled'));
     }
     this.activeOperations.clear();
   }
@@ -600,41 +610,40 @@ class TimeoutManager {
  * EXAMPLE 8: Using the TimeoutManager utility
  */
 async function example8_timeoutManager() {
-  console.log("\n" + "=".repeat(60));
-  console.log("📋 EXAMPLE 8: TimeoutManager Utility Class");
-  console.log("=".repeat(60) + "\n");
+  console.log('\n' + '='.repeat(60));
+  console.log('📋 EXAMPLE 8: TimeoutManager Utility Class');
+  console.log('='.repeat(60) + '\n');
 
   const graph = createProcessingGraph();
   const manager = new TimeoutManager();
 
-  console.log("🛠️  Using reusable TimeoutManager");
-  console.log("Expected: Clean timeout handling with automatic cleanup\n");
+  console.log('🛠️  Using reusable TimeoutManager');
+  console.log('Expected: Clean timeout handling with automatic cleanup\n');
 
   try {
     await manager.runWithTimeout(
       async (signal) => {
         return await graph.invoke(
-          { messages: [new HumanMessage("Start processing")] },
+          { messages: [new HumanMessage('Start processing')] },
           {
             configurable: { thread_id: `manager-${Date.now()}` },
-            signal
-          }
+            signal,
+          },
         );
       },
       {
         timeoutMs: 5000,
-        operationId: "my-operation",
-        onTimeout: () => console.log("\n⚠️  TimeoutManager: Operation timed out!")
-      }
+        operationId: 'my-operation',
+        onTimeout: () => console.log('\n⚠️  TimeoutManager: Operation timed out!'),
+      },
     );
 
-    console.log("\n✨ Operation completed successfully");
-
+    console.log('\n✨ Operation completed successfully');
   } catch (error: any) {
-    if (error.message === "Timeout" || error.name === 'AbortError' || error.message === 'Aborted') {
-      console.log("\n⏱️  Handled by TimeoutManager");
+    if (error.message === 'Timeout' || error.name === 'AbortError' || error.message === 'Aborted') {
+      console.log('\n⏱️  Handled by TimeoutManager');
     } else {
-      console.error("\n❌ Unexpected error:", error);
+      console.error('\n❌ Unexpected error:', error);
     }
   }
 }
@@ -643,15 +652,15 @@ async function example8_timeoutManager() {
  * Main demo runner
  */
 async function runAllExamples() {
-  console.log("=".repeat(70));
-  console.log("🚀 LANGGRAPH EXECUTION CONTROL: COMPREHENSIVE EXAMPLES");
-  console.log("=".repeat(70));
-  console.log("\nThis demonstration shows all the ways to control graph execution:");
-  console.log("- Timeouts (various strategies)");
-  console.log("- Manual cancellation");
-  console.log("- Recursion limits");
-  console.log("- Combined approaches");
-  console.log("=".repeat(70));
+  console.log('='.repeat(70));
+  console.log('🚀 LANGGRAPH EXECUTION CONTROL: COMPREHENSIVE EXAMPLES');
+  console.log('='.repeat(70));
+  console.log('\nThis demonstration shows all the ways to control graph execution:');
+  console.log('- Timeouts (various strategies)');
+  console.log('- Manual cancellation');
+  console.log('- Recursion limits');
+  console.log('- Combined approaches');
+  console.log('='.repeat(70));
 
   // Run all examples
   await example1_basicTimeout();
@@ -663,21 +672,21 @@ async function runAllExamples() {
   await example7_streamingWithTimeout();
   await example8_timeoutManager();
 
-  console.log("\n" + "=".repeat(70));
-  console.log("✨ ALL EXAMPLES COMPLETE");
-  console.log("=".repeat(70));
-  console.log("\n💡 KEY TAKEAWAYS:");
-  console.log("1. Use AbortSignal.timeout() for simple time-based limits");
-  console.log("2. Use AbortController for more control (can cancel manually)");
-  console.log("3. Use recursionLimit for step-based limits");
-  console.log("4. Combine multiple strategies for robust control");
-  console.log("5. Always clean up timeouts and event listeners");
-  console.log("6. Consider progressive timeouts for unreliable operations");
-  console.log("7. AbortSignal.any() combines multiple signals effectively");
-  console.log("=".repeat(70) + "\n");
-  
+  console.log('\n' + '='.repeat(70));
+  console.log('✨ ALL EXAMPLES COMPLETE');
+  console.log('='.repeat(70));
+  console.log('\n💡 KEY TAKEAWAYS:');
+  console.log('1. Use AbortSignal.timeout() for simple time-based limits');
+  console.log('2. Use AbortController for more control (can cancel manually)');
+  console.log('3. Use recursionLimit for step-based limits');
+  console.log('4. Combine multiple strategies for robust control');
+  console.log('5. Always clean up timeouts and event listeners');
+  console.log('6. Consider progressive timeouts for unreliable operations');
+  console.log('7. AbortSignal.any() combines multiple signals effectively');
+  console.log('='.repeat(70) + '\n');
+
   // Give some time for any lingering async operations to complete
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 }
 
 // Run if this is the main module
@@ -686,9 +695,4 @@ if (require.main === module) {
 }
 
 // Export for reuse
-export {
-  createProcessingGraph,
-  createLoopingGraph,
-  ProcessingState,
-  TimeoutManager
-};
+export { createProcessingGraph, createLoopingGraph, ProcessingState, TimeoutManager };

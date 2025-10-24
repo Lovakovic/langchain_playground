@@ -1,8 +1,8 @@
-import dotenv from "dotenv";
-import {tool} from "@langchain/core/tools";
-import { ChatVertexAI } from "@langchain/google-vertexai";
-import {HumanMessage, ToolMessage} from "@langchain/core/messages";
-import {convertJSONSchemaDraft7ToZod} from "../../../shared/utils/json-schema-to-zod/json7ToZodSchema";
+import dotenv from 'dotenv';
+import { tool } from '@langchain/core/tools';
+import { ChatVertexAI } from '@langchain/google-vertexai';
+import { HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { convertJSONSchemaDraft7ToZod } from '../../../shared/utils/json-schema-to-zod/json7ToZodSchema';
 
 dotenv.config();
 
@@ -13,8 +13,8 @@ const multiply = tool(
     return a * b;
   },
   {
-    name: "multiply",
-    description: "Multiply two numbers",
+    name: 'multiply',
+    description: 'Multiply two numbers',
     schema: convertJSONSchemaDraft7ToZod({
       type: 'object',
       properties: {
@@ -27,65 +27,64 @@ const multiply = tool(
           description: 'The second number to multiply',
         },
       },
-      required: ["a", "b"],
+      required: ['a', 'b'],
     }),
-  }
+  },
 );
 
 const main = async () => {
-  if(!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
+  if (!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
-      "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
-      "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
+      'GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. ' +
+        "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file.",
     );
   }
 
   const model = new ChatVertexAI({
-    model: "gemini-2.5-pro",
+    model: 'gemini-2.5-pro',
     temperature: 0.7,
     streaming: false,
     maxRetries: 2,
   });
   const modelWithTools = model.bindTools([multiply]);
 
-  const userInput = "What is 12 multiplied by 7?";
+  const userInput = 'What is 12 multiplied by 7?';
   const humanMessage = new HumanMessage(userInput);
   console.log(`Starting with input: "${userInput}"`);
 
   // First call to the model
   const firstResponse = await modelWithTools.invoke([humanMessage]);
 
-  console.log("\nModel response (raw):");
+  console.log('\nModel response (raw):');
   console.dir(firstResponse, { depth: null });
 
   if (firstResponse.tool_calls && firstResponse.tool_calls.length > 0) {
     const toolCall = firstResponse.tool_calls[0];
-    if (toolCall && toolCall.name === "multiply") {
+    if (toolCall && toolCall.name === 'multiply') {
       try {
         const toolResult = await multiply.invoke(toolCall!.args as { a: number; b: number });
 
         const toolMessage = new ToolMessage({
-          content: toolResult.toString(), 
-          tool_call_id: toolCall!.id ?? "invalid_tool_call_id",
+          content: toolResult.toString(),
+          tool_call_id: toolCall!.id ?? 'invalid_tool_call_id',
         });
 
         // Second call to the model, including the tool result
         const finalResponse = await modelWithTools.invoke([
           humanMessage, // Original user input
           firstResponse, // AI message with the tool call
-          toolMessage    // Tool message with the tool result
+          toolMessage, // Tool message with the tool result
         ]);
 
-        console.log("\nFinal model response after tool execution:");
+        console.log('\nFinal model response after tool execution:');
         console.log(finalResponse.content);
-
       } catch (error) {
         console.error(`Error executing tool ${toolCall!.name}:`, error);
-        console.log("\nFinal result: Error during tool execution.");
+        console.log('\nFinal result: Error during tool execution.');
       }
     }
   } else {
-    console.log("\nFinal model response (no tools called):");
+    console.log('\nFinal model response (no tools called):');
     console.log(firstResponse.content);
   }
 };

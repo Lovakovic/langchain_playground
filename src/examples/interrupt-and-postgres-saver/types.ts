@@ -18,15 +18,15 @@ export interface Source {
   searchQuery: string;
 }
 
-export type ResearchStatus = 
-  | "parsing"
-  | "initial_search"
-  | "deep_diving"
-  | "analyzing"
-  | "summarizing"
-  | "awaiting_feedback"
-  | "refining"
-  | "complete";
+export type ResearchStatus =
+  | 'parsing'
+  | 'initial_search'
+  | 'deep_diving'
+  | 'analyzing'
+  | 'summarizing'
+  | 'awaiting_feedback'
+  | 'refining'
+  | 'complete';
 
 export interface ResearchMetadata {
   startTime: string;

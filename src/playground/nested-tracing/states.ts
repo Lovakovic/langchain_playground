@@ -3,30 +3,30 @@ import { MockMenuItem, MockFileMetadata } from './types';
 
 /**
  * State Management for Nested Graph Architecture
- * 
+ *
  * This file demonstrates the state management patterns used in complex LangGraph
  * architectures like monkey-ai. The key challenge for tracing is understanding
  * how state flows between master graphs and subgraphs, and how different nodes
  * modify shared state.
- * 
+ *
  * The NestedTracer captures events from nodes that read and modify this state,
  * providing visibility into the data flow patterns.
  */
 
 /**
  * Master Graph State - Top-level state for the entire processing pipeline
- * 
+ *
  * This state is shared across all nodes in the master graph and passed down
  * to subgraphs. It mirrors the complex state structure from monkey-ai that
  * accumulates results from multiple processing phases.
- * 
+ *
  * The tracer can associate events with specific state channels to understand
  * what data each node is working with.
  */
 export const MasterGraphState = Annotation.Root({
   // === INPUT CHANNELS ===
   // These channels provide the initial data for processing
-  
+
   inputFiles: Annotation<MockFileMetadata[]>({
     reducer: (x, y) => y ?? x ?? [], // Use new value if provided, otherwise keep existing
   }),
@@ -36,7 +36,7 @@ export const MasterGraphState = Annotation.Root({
 
   // === EXTRACTION OUTPUTS ===
   // These channels are populated by the extraction subgraph
-  
+
   extractedItems: Annotation<MockMenuItem[]>({
     reducer: (x, y) => y ?? x ?? [],
     // The tracer can show when this channel is populated by the extraction subgraph
@@ -49,7 +49,7 @@ export const MasterGraphState = Annotation.Root({
   // === ENRICHMENT RESULTS ===
   // These channels are populated by various enrichment subgraphs
   // The tracer can show the parallel population of these channels
-  
+
   categorizedItems: Annotation<Array<{ itemId: string; category: string; confidence: number }>>({
     reducer: (x, y) => y ?? x ?? [],
     // Populated by category_enrichment subgraph
@@ -58,14 +58,16 @@ export const MasterGraphState = Annotation.Root({
     reducer: (x, y) => y ?? x ?? [],
     // Populated by allergen_enrichment subgraph (in parallel with translation)
   }),
-  translatedItems: Annotation<Array<{ itemId: string; translatedName: string; translatedDescription?: string }>>({
+  translatedItems: Annotation<
+    Array<{ itemId: string; translatedName: string; translatedDescription?: string }>
+  >({
     reducer: (x, y) => y ?? x ?? [],
     // Populated by translation_enrichment subgraph (in parallel with allergen)
   }),
 
   // === FINAL OUTPUTS ===
   // These channels contain the final assembled results
-  
+
   finalMenuStructure: Annotation<any>({
     reducer: (x, y) => y ?? x,
     // The complete menu structure assembled from all enrichment results
@@ -77,7 +79,7 @@ export const MasterGraphState = Annotation.Root({
 
   // === ERROR TRACKING ===
   // Error accumulation across all processing phases
-  
+
   errorLog: Annotation<string[]>({
     reducer: (x, y) => {
       const combined = [...(x ?? []), ...(y ?? [])];
@@ -90,11 +92,11 @@ export const MasterGraphState = Annotation.Root({
 
 /**
  * Extraction Subgraph State - Specialized state for the extraction pipeline
- * 
+ *
  * This demonstrates how subgraphs can have their own state management while
  * still participating in the master graph's state flow. The extraction subgraph
  * receives input from the master state and produces output that flows back up.
- * 
+ *
  * The tracer shows how state transitions within this subgraph and how the
  * final output integrates with the master graph state.
  */
@@ -107,7 +109,7 @@ export const ExtractionState = Annotation.Root({
 
   // === INTERNAL PROCESSING STATE ===
   // These channels are used internally within the extraction subgraph
-  
+
   processedContent: Annotation<string>({
     reducer: (x, y) => y ?? x ?? '',
     // Intermediate result from file_processing_node
@@ -130,7 +132,7 @@ export const ExtractionState = Annotation.Root({
 
 /**
  * Enrichment Subgraph States - Specialized states for parallel enrichment
- * 
+ *
  * These states demonstrate how parallel subgraphs can each have their own
  * specialized state while working on the same base data. The tracer shows
  * how these parallel operations execute simultaneously and contribute to
@@ -152,7 +154,7 @@ export const CategoryEnrichmentState = Annotation.Root({
   }),
 });
 
-// Allergen enrichment subgraph state  
+// Allergen enrichment subgraph state
 export const AllergenEnrichmentState = Annotation.Root({
   extractedItems: Annotation<MockMenuItem[]>({
     reducer: (x, y) => y ?? x ?? [],
@@ -173,7 +175,9 @@ export const TranslationEnrichmentState = Annotation.Root({
     reducer: (x, y) => y ?? x ?? [],
     // Same input as other enrichment subgraphs (parallel processing)
   }),
-  translatedItems: Annotation<Array<{ itemId: string; translatedName: string; translatedDescription?: string }>>({
+  translatedItems: Annotation<
+    Array<{ itemId: string; translatedName: string; translatedDescription?: string }>
+  >({
     reducer: (x, y) => y ?? x ?? [],
     // Output: translation results (flows back to master)
   }),
@@ -184,14 +188,14 @@ export const TranslationEnrichmentState = Annotation.Root({
 
 /**
  * State Flow Pattern Summary
- * 
+ *
  * The state management here demonstrates the key patterns that the NestedTracer tracks:
- * 
+ *
  * 1. **Hierarchical State Flow**: Master graph state flows down to subgraphs
- * 2. **Parallel Processing**: Multiple subgraphs work on the same input simultaneously  
+ * 2. **Parallel Processing**: Multiple subgraphs work on the same input simultaneously
  * 3. **Result Aggregation**: Subgraph outputs flow back up to master state channels
  * 4. **Error Accumulation**: Errors bubble up from nested operations
- * 
+ *
  * The tracer captures when each node reads from and writes to these state channels,
  * providing visibility into the complex data flow patterns in nested graph architectures.
  */

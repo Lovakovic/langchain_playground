@@ -1,24 +1,24 @@
 /**
  * LangGraph Advanced Metrics Tracing Example
  * ==========================================
- * 
+ *
  * This example demonstrates how to build a custom tracer that captures detailed
  * performance metrics from complex LangGraph applications, including:
- * 
+ *
  * 1. **Multi-Model Support**: Track token usage across different LLM providers
  *    (Vertex AI, OpenAI, Anthropic, etc.) with exact model names
- * 
+ *
  * 2. **Hierarchical Tracking**: Capture metrics at both graph and node levels,
  *    including subgraphs with proper parent-child relationships
- * 
+ *
  * 3. **Comprehensive Token Metrics**: Track input/output tokens, total usage,
  *    and calculate averages per model and per node
- * 
+ *
  * 4. **Performance Timing**: Measure execution time for the entire graph and
  *    individual nodes to identify bottlenecks
- * 
+ *
  * ARCHITECTURE OVERVIEW:
- * 
+ *
  * Main Graph (Vertex AI)
  * ├── Planner Node → Analyzes request and decides if research is needed
  * ├── Research Subgraph (OpenAI) → Performs deep research when needed
@@ -26,9 +26,9 @@
  * │   └── Tools Node → Executes research tools
  * ├── Tool Node → Executes web search tool
  * └── Summarizer Node → Generates final answer using all gathered information
- * 
+ *
  * KEY FEATURES OF THE ENHANCED METRICS TRACER:
- * 
+ *
  * - Extracts exact model names from LangChain events (e.g., "gpt-4o-mini", "gemini-2.5-flash")
  * - Handles different token usage formats from various providers
  * - Attributes token usage to the correct parent nodes in the graph hierarchy
@@ -36,7 +36,7 @@
  */
 
 import { z } from 'zod';
-import { StateGraph, Annotation, _CompiledStateGraph, _StateDefinition, MessagesAnnotation } from '@langchain/langgraph';
+import { StateGraph, Annotation, MessagesAnnotation } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { tool } from '@langchain/core/tools';
@@ -56,40 +56,43 @@ dotenv.config();
 
 /**
  * NodeMetrics Interface
- * 
+ *
  * Represents metrics collected for a single node in the graph.
  * Each node tracks its own token usage, execution time, and LLM calls.
  * The tokensByModel field allows tracking usage across multiple models
  * within a single node (useful for nodes that might call multiple LLMs).
  */
 interface NodeMetrics {
-  name: string;                    // Human-readable node name
-  runId: string;                   // Unique identifier for this run
-  startTime: number;               // Timestamp when node started
-  durationMs?: number;             // Total execution time in milliseconds
-  inputTokens: number;             // Total input tokens across all LLM calls
-  outputTokens: number;            // Total output tokens across all LLM calls
-  totalTokens: number;             // Combined input + output tokens
-  invocations: number;             // How many times this node was invoked
-  llmCalls: number;                // Number of LLM calls made by this node
-  
+  name: string; // Human-readable node name
+  runId: string; // Unique identifier for this run
+  startTime: number; // Timestamp when node started
+  durationMs?: number; // Total execution time in milliseconds
+  inputTokens: number; // Total input tokens across all LLM calls
+  outputTokens: number; // Total output tokens across all LLM calls
+  totalTokens: number; // Combined input + output tokens
+  invocations: number; // How many times this node was invoked
+  llmCalls: number; // Number of LLM calls made by this node
+
   // Track tokens by model within this node
   // Key: model name (e.g., "gpt-4o-mini"), Value: token statistics
-  tokensByModel: Record<string, {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    calls: number;
-  }>;
+  tokensByModel: Record<
+    string,
+    {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      calls: number;
+    }
+  >;
 }
 
 /**
  * EnhancedMetricsTracer Class
- * 
+ *
  * Extends LangChain's BaseTracer to intercept and analyze LLM events.
  * This tracer captures detailed metrics about token usage, execution time,
  * and model-specific statistics across complex graph executions.
- * 
+ *
  * HOW IT WORKS:
  * 1. onChainStart: Called when any node/chain starts execution
  * 2. onLLMStart: Called when an LLM is invoked (extracts model name)
@@ -108,12 +111,15 @@ export class EnhancedMetricsTracer extends BaseTracer {
 
   // ===== Per-Model Aggregated Metrics =====
   // Tracks total token usage across all nodes for each model
-  private tokensByModel = new Map<string, {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    calls: number;
-  }>();
+  private tokensByModel = new Map<
+    string,
+    {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      calls: number;
+    }
+  >();
 
   // ===== Per-Node Metrics =====
   // Maps run ID to node metrics for detailed node-level tracking
@@ -133,7 +139,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
 
   /**
    * Called when a chain/node starts execution
-   * 
+   *
    * This method:
    * 1. Identifies the root graph execution (no parent_run_id)
    * 2. Filters out internal LangGraph machinery (ChannelWrite, etc.)
@@ -161,13 +167,13 @@ export class EnhancedMetricsTracer extends BaseTracer {
       totalTokens: 0,
       invocations: 1,
       llmCalls: 0,
-      tokensByModel: {}
+      tokensByModel: {},
     });
   }
 
   /**
    * Called when a chain/node completes execution
-   * 
+   *
    * Calculates the duration of the node execution and updates
    * the graph end time if this was the root node
    */
@@ -186,34 +192,34 @@ export class EnhancedMetricsTracer extends BaseTracer {
 
   /**
    * Called when an LLM starts processing
-   * 
+   *
    * This is where we extract the model name from various possible locations
    * in the run object. Different LangChain integrations store this differently:
    * - serialized.kwargs.model: Most common location
    * - extra.invocation_params.model: Alternative location
    * - extra.metadata.ls_model_name: LangSmith metadata
-   * 
+   *
    * We store the model name in run.extra for retrieval in onLLMEnd
    */
   override onLLMStart(run: Run): void {
     let modelName: string | undefined;
-    
+
     // Try serialized.kwargs.model (most reliable for most providers)
     const serialized = run.serialized as any;
     if (serialized?.kwargs?.model) {
       modelName = serialized.kwargs.model;
     }
-    
+
     // Fallback to extra.invocation_params.model
-    if (!modelName && run.extra?.invocation_params?.model) {
-      modelName = run.extra.invocation_params.model;
+    if (!modelName && run.extra?.['invocation_params']?.model) {
+      modelName = run.extra['invocation_params'].model;
     }
-    
+
     // Fallback to extra.metadata.ls_model_name (LangSmith metadata)
-    if (!modelName && run.extra?.metadata?.ls_model_name) {
-      modelName = run.extra.metadata.ls_model_name;
+    if (!modelName && run.extra?.['metadata']?.ls_model_name) {
+      modelName = run.extra['metadata'].ls_model_name;
     }
-    
+
     if (modelName) {
       // Store model name for later use in onLLMEnd
       run.extra = { ...run.extra, modelName };
@@ -222,7 +228,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
 
   /**
    * Called when an LLM completes processing
-   * 
+   *
    * This is the most complex method as it:
    * 1. Retrieves the model name (including actual version for OpenAI)
    * 2. Extracts token usage from various possible formats
@@ -231,22 +237,23 @@ export class EnhancedMetricsTracer extends BaseTracer {
    */
   override onLLMEnd(run: Run): void {
     // ===== Step 1: Get Model Name =====
-    let modelName = run.extra?.modelName;
-    
+    let modelName = run.extra?.['modelName'];
+
     // For OpenAI, we can get the actual model version from response metadata
     // This gives us "gpt-4o-mini-2024-07-18" instead of just "gpt-4o-mini"
     if (!modelName || modelName.startsWith('gpt')) {
-      const responseMetadata = run.outputs?.generations?.[0]?.[0]?.message?.kwargs?.response_metadata;
+      const responseMetadata =
+        run.outputs?.['generations']?.[0]?.[0]?.message?.kwargs?.response_metadata;
       if (responseMetadata?.model_name) {
         modelName = responseMetadata.model_name;
       }
     }
-    
+
     // Fallback to extraction from run name
     if (!modelName) {
       modelName = this.extractModelName(run);
     }
-    
+
     // ===== Step 2: Extract Token Usage =====
     // Different providers store token usage in different formats
     let inputTokens = 0;
@@ -254,7 +261,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
     let totalTokens = 0;
 
     // Path 1: Standard LangChain format (most providers)
-    const tokenUsage = run.outputs?.llmOutput?.tokenUsage;
+    const tokenUsage = run.outputs?.['llmOutput']?.tokenUsage;
     if (tokenUsage) {
       inputTokens = tokenUsage.promptTokens ?? 0;
       outputTokens = tokenUsage.completionTokens ?? 0;
@@ -262,7 +269,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
     }
 
     // Path 2: Vertex AI format
-    const usageMetadata = run.outputs?.llmOutput?.usage_metadata;
+    const usageMetadata = run.outputs?.['llmOutput']?.usage_metadata;
     if (usageMetadata) {
       inputTokens = usageMetadata.input_tokens ?? 0;
       outputTokens = usageMetadata.output_tokens ?? 0;
@@ -270,7 +277,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
     }
 
     // Path 3: OpenAI alternative format
-    const usage = run.outputs?.llmOutput?.usage;
+    const usage = run.outputs?.['llmOutput']?.usage;
     if (usage) {
       inputTokens = usage.prompt_tokens ?? 0;
       outputTokens = usage.completion_tokens ?? 0;
@@ -291,14 +298,14 @@ export class EnhancedMetricsTracer extends BaseTracer {
         inputTokens: 0,
         outputTokens: 0,
         totalTokens: 0,
-        calls: 0
+        calls: 0,
       };
-      
+
       modelStats.inputTokens += inputTokens;
       modelStats.outputTokens += outputTokens;
       modelStats.totalTokens += totalTokens;
       modelStats.calls += 1;
-      
+
       this.tokensByModel.set(modelName, modelStats);
     }
 
@@ -330,14 +337,14 @@ export class EnhancedMetricsTracer extends BaseTracer {
           inputTokens: 0,
           outputTokens: 0,
           totalTokens: 0,
-          calls: 0
+          calls: 0,
         };
-        
+
         nodeModelStats.inputTokens += inputTokens;
         nodeModelStats.outputTokens += outputTokens;
         nodeModelStats.totalTokens += totalTokens;
         nodeModelStats.calls += 1;
-        
+
         parentNodeMetrics.tokensByModel[modelName] = nodeModelStats;
       }
     }
@@ -351,18 +358,18 @@ export class EnhancedMetricsTracer extends BaseTracer {
     const serialized = run.serialized as any;
     if (serialized?.kwargs?.model) return serialized.kwargs.model;
     if (serialized?.name) return serialized.name;
-    
+
     // Last resort - check run name for provider hints
     if (run.name.includes('ChatVertexAI')) return 'Vertex AI (Unknown Model)';
     if (run.name.includes('ChatOpenAI')) return 'OpenAI (Unknown Model)';
     if (run.name.includes('ChatAnthropic')) return 'Anthropic (Unknown Model)';
-    
+
     return 'Unknown';
   }
 
   /**
    * Displays comprehensive metrics in the console
-   * 
+   *
    * Shows:
    * 1. Overall summary (duration, total tokens)
    * 2. Token usage broken down by model
@@ -374,29 +381,31 @@ export class EnhancedMetricsTracer extends BaseTracer {
     const totalDuration = this.graphEndTime - this.graphStartTime;
     console.log(`\n📈 Overall Summary:`);
     console.log(`  - Total Duration: ${totalDuration.toFixed(2)}ms`);
-    console.log(`  - Total Tokens:   ${this.totalTokens} (Input: ${this.totalInputTokens}, Output: ${this.totalOutputTokens})`);
+    console.log(
+      `  - Total Tokens:   ${this.totalTokens} (Input: ${this.totalInputTokens}, Output: ${this.totalOutputTokens})`,
+    );
 
     // Show token usage by model
     if (this.tokensByModel.size > 0) {
       console.log('\n🤖 Token Usage by Model:');
       const modelData = Array.from(this.tokensByModel.entries()).map(([model, stats]) => ({
-        'Model': model,
-        'Calls': stats.calls,
+        Model: model,
+        Calls: stats.calls,
         'Total Tokens': stats.totalTokens,
         'Input Tokens': stats.inputTokens,
         'Output Tokens': stats.outputTokens,
-        'Avg Tokens/Call': Math.round(stats.totalTokens / stats.calls)
+        'Avg Tokens/Call': Math.round(stats.totalTokens / stats.calls),
       }));
       console.table(modelData);
     }
 
     console.log('\n🔍 Per-Node Breakdown:');
-    const tableData = Array.from(this.nodeMetrics.values()).map(m => ({
+    const tableData = Array.from(this.nodeMetrics.values()).map((m) => ({
       'Node Name': m.name,
       'Duration (ms)': m.durationMs?.toFixed(2) ?? 'N/A',
       'LLM Calls': m.llmCalls,
       'Total Tokens': m.totalTokens,
-      'Models Used': Object.keys(m.tokensByModel).join(', ') || 'None'
+      'Models Used': Object.keys(m.tokensByModel).join(', ') || 'None',
     }));
 
     if (tableData.length > 0) {
@@ -407,7 +416,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
 
   /**
    * Exports metrics to a JSON file for further analysis
-   * 
+   *
    * The JSON structure includes:
    * - Overall metrics with model breakdown
    * - Detailed per-node metrics including model usage
@@ -420,9 +429,9 @@ export class EnhancedMetricsTracer extends BaseTracer {
         totalInputTokens: this.totalInputTokens,
         totalOutputTokens: this.totalOutputTokens,
         totalTokens: this.totalTokens,
-        tokensByModel: Object.fromEntries(this.tokensByModel)
+        tokensByModel: Object.fromEntries(this.tokensByModel),
       },
-      nodes: Array.from(this.nodeMetrics.values())
+      nodes: Array.from(this.nodeMetrics.values()),
     };
 
     const dir = path.dirname(filePath);
@@ -441,7 +450,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
 
 /**
  * Main Graph State Definition
- * 
+ *
  * Uses LangGraph's Annotation system to define the state shape.
  * Each field can have a reducer function that determines how updates
  * are merged into the existing state.
@@ -450,19 +459,19 @@ const GraphState = Annotation.Root({
   // Messages accumulate throughout the graph execution
   messages: Annotation<BaseMessage[]>({
     reducer: (current, update) => [...current, ...update],
-    default: () => []
+    default: () => [],
   }),
-  
+
   // Fields set by specific nodes
-  plan: Annotation<string>,              // Planner's analysis of the request
-  research_needed: Annotation<boolean>,  // Whether deep research is required
-  research_results: Annotation<string>,  // Results from the research subgraph
-  tool_output: Annotation<string>        // Output from tool execution
+  plan: Annotation<string>, // Planner's analysis of the request
+  research_needed: Annotation<boolean>, // Whether deep research is required
+  research_results: Annotation<string>, // Results from the research subgraph
+  tool_output: Annotation<string>, // Output from tool execution
 });
 
 /**
  * Research Subgraph State
- * 
+ *
  * Uses the built-in MessagesAnnotation for simplicity.
  * This provides automatic message accumulation without custom reducers.
  */
@@ -470,28 +479,28 @@ const ResearchState = MessagesAnnotation;
 
 /**
  * Planner Output Schema
- * 
+ *
  * Defines the structured output expected from the planner LLM.
  * Using Zod schemas with LangChain ensures type safety and validation.
  */
 const PlanSchema = z.object({
   plan: z.string().describe("A concise plan to address the user's request"),
-  needs_research: z.boolean().describe("Whether additional research is needed"),
-  research_query: z.string().optional().describe("The research query if needed"),
-  tool_to_use: z.enum(['search_web', 'none']).describe("Tool to use after research")
+  needs_research: z.boolean().describe('Whether additional research is needed'),
+  research_query: z.string().optional().describe('The research query if needed'),
+  tool_to_use: z.enum(['search_web', 'none']).describe('Tool to use after research'),
 });
 
 /**
  * Web Search Tool
- * 
+ *
  * A simple tool that simulates web search functionality.
  * In production, this would call an actual search API.
  */
 const searchWebTool = tool(
   async ({ query }: { query: string }) => {
     console.log(`\n🔍 Searching web for: "${query}"...`);
-    await new Promise(res => setTimeout(res, 500)); // Simulate API delay
-    
+    await new Promise((res) => setTimeout(res, 500)); // Simulate API delay
+
     // Mock responses based on query content
     if (query.toLowerCase().includes('langgraph')) {
       return 'LangGraph is a library for building stateful, multi-actor applications with LLMs. It provides graph-based orchestration for complex agent workflows.';
@@ -503,27 +512,27 @@ const searchWebTool = tool(
   {
     name: 'search_web',
     description: 'Search the web for information',
-    schema: z.object({ query: z.string() })
-  }
+    schema: z.object({ query: z.string() }),
+  },
 );
 
 /**
  * Deep Research Tool
- * 
+ *
  * Used by the research subgraph for more comprehensive information gathering.
  * This demonstrates how different parts of the graph can use different tools.
  */
 const researchTool = tool(
   async ({ topic }: { topic: string }) => {
     console.log(`\n📚 Deep researching: "${topic}"...`);
-    await new Promise(res => setTimeout(res, 800)); // Simulate longer processing
+    await new Promise((res) => setTimeout(res, 800)); // Simulate longer processing
     return `In-depth research findings about ${topic}: This topic involves complex interactions between multiple components. Key insights include scalability, performance optimization, and best practices.`;
   },
   {
     name: 'deep_research',
     description: 'Perform deep research on a topic',
-    schema: z.object({ topic: z.string() })
-  }
+    schema: z.object({ topic: z.string() }),
+  },
 );
 
 // ============================================================================
@@ -532,7 +541,7 @@ const researchTool = tool(
 
 /**
  * Research Node for the Subgraph
- * 
+ *
  * This node uses OpenAI (different from the main graph's Vertex AI)
  * to demonstrate multi-model tracking. The node:
  * 1. Configures OpenAI with specific parameters
@@ -541,7 +550,7 @@ const researchTool = tool(
  */
 async function researchWithOpenAI(state: typeof ResearchState.State, config?: RunnableConfig) {
   if (!process.env['OPENAI_API_KEY']) {
-    throw new Error("OPENAI_API_KEY environment variable is not set");
+    throw new Error('OPENAI_API_KEY environment variable is not set');
   }
 
   // Configure OpenAI model with tool binding
@@ -562,23 +571,28 @@ async function researchWithOpenAI(state: typeof ResearchState.State, config?: Ru
 
 /**
  * Routing function for the research subgraph
- * 
+ *
  * Determines whether to execute tools or end the subgraph execution
  * based on whether the model requested tool calls.
  */
 function shouldContinueResearch(state: typeof ResearchState.State) {
   const lastMessage = state.messages[state.messages.length - 1];
-  
-  if (lastMessage && "tool_calls" in lastMessage && Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0) {
-    return "tools";
+
+  if (
+    lastMessage &&
+    'tool_calls' in lastMessage &&
+    Array.isArray(lastMessage.tool_calls) &&
+    lastMessage.tool_calls.length > 0
+  ) {
+    return 'tools';
   }
-  
-  return "end";
+
+  return 'end';
 }
 
 /**
  * Creates the research subgraph
- * 
+ *
  * This is a complete mini-graph that:
  * 1. Receives a research query
  * 2. Uses OpenAI to analyze it
@@ -587,14 +601,14 @@ function shouldContinueResearch(state: typeof ResearchState.State) {
  */
 export function createResearchSubgraph() {
   return new StateGraph(ResearchState)
-    .addNode("research", researchWithOpenAI)
-    .addNode("tools", new ToolNode([researchTool]))
-    .addEdge("__start__", "research")
-    .addConditionalEdges("research", shouldContinueResearch, {
-      tools: "tools",
-      end: "__end__"
+    .addNode('research', researchWithOpenAI)
+    .addNode('tools', new ToolNode([researchTool]))
+    .addEdge('__start__', 'research')
+    .addConditionalEdges('research', shouldContinueResearch, {
+      tools: 'tools',
+      end: '__end__',
     })
-    .addEdge("tools", "__end__")
+    .addEdge('tools', '__end__')
     .compile();
 }
 
@@ -604,12 +618,12 @@ export function createResearchSubgraph() {
 
 /**
  * Planner Node
- * 
+ *
  * The entry point of our graph that:
  * 1. Analyzes the user's request using Vertex AI
  * 2. Decides whether deep research is needed
  * 3. Creates a plan for addressing the request
- * 
+ *
  * Uses structured output to ensure consistent response format
  */
 const planner_node = async (state: typeof GraphState.State, config?: RunnableConfig) => {
@@ -628,57 +642,52 @@ const planner_node = async (state: typeof GraphState.State, config?: RunnableCon
   return {
     plan: result.plan,
     research_needed: result.needs_research,
-    messages: [
-      new AIMessage(`I'll help you with that. ${result.plan}`)
-    ]
+    messages: [new AIMessage(`I'll help you with that. ${result.plan}`)],
   };
 };
 
 /**
  * Research Integration Node
- * 
+ *
  * This node:
  * 1. Checks if research is needed (set by planner)
  * 2. Creates and invokes the research subgraph if needed
  * 3. Extracts and formats the research findings
- * 
+ *
  * Demonstrates how to integrate subgraphs into a larger graph
  */
 async function research_node(state: typeof GraphState.State, config?: RunnableConfig) {
   if (!state.research_needed) {
-    return { research_results: "No research needed" };
+    return { research_results: 'No research needed' };
   }
 
-  console.log("\n🔬 Initiating research subgraph with OpenAI...");
-  
+  console.log('\n🔬 Initiating research subgraph with OpenAI...');
+
   // Create and invoke the subgraph
   const researchSubgraph = createResearchSubgraph();
   const lastMessage = state.messages[state.messages.length - 1];
   const query = typeof lastMessage?.content === 'string' ? lastMessage.content : 'Research query';
-  
+
   // The subgraph will use its own state but inherit our config (including tracer)
-  const result = await researchSubgraph.invoke(
-    { messages: [new HumanMessage(query)] },
-    config
-  );
+  const result = await researchSubgraph.invoke({ messages: [new HumanMessage(query)] }, config);
 
   // Extract research findings from subgraph output
-  let findings = "";
+  let findings = '';
   for (const msg of result.messages) {
     if (msg.content && typeof msg.content === 'string') {
-      findings += msg.content + "\n";
+      findings += msg.content + '\n';
     }
   }
 
   return {
     research_results: findings,
-    messages: [new AIMessage("Research completed. " + findings)]
+    messages: [new AIMessage('Research completed. ' + findings)],
   };
 }
 
 /**
  * Tool Execution Node
- * 
+ *
  * Executes the web search tool based on the user's query.
  * This node demonstrates:
  * 1. Creating tool call messages programmatically
@@ -687,42 +696,45 @@ async function research_node(state: typeof GraphState.State, config?: RunnableCo
  */
 const toolNodeWithOutput = async (state: typeof GraphState.State, config?: RunnableConfig) => {
   const toolNode = new ToolNode([searchWebTool]);
-  
+
   // Extract search query from the original user message
   const firstMessage = state.messages[0];
-  const searchQuery = typeof firstMessage?.content === 'string' ? firstMessage.content : 'general search';
-  
+  const searchQuery =
+    typeof firstMessage?.content === 'string' ? firstMessage.content : 'general search';
+
   // Create a tool call message
   const toolCallMessage = new AIMessage({
     content: '',
-    tool_calls: [{
-      name: 'search_web',
-      args: { query: searchQuery },
-      id: `call_${Date.now()}`
-    }]
+    tool_calls: [
+      {
+        name: 'search_web',
+        args: { query: searchQuery },
+        id: `call_${Date.now()}`,
+      },
+    ],
   });
 
   // Add tool call to messages and invoke ToolNode
   const modifiedState = {
     ...state,
-    messages: [...state.messages, toolCallMessage]
+    messages: [...state.messages, toolCallMessage],
   };
 
   const result = await toolNode.invoke(modifiedState, config);
-  
+
   // Extract tool output from the result
   const lastMessage = result.messages[result.messages.length - 1];
   const toolOutput = lastMessage.content || '';
-  
+
   return {
     messages: result.messages,
-    tool_output: toolOutput
+    tool_output: toolOutput,
   };
 };
 
 /**
  * Summarizer Node
- * 
+ *
  * The final node that:
  * 1. Gathers all information from previous nodes
  * 2. Generates a comprehensive answer using Vertex AI
@@ -736,8 +748,9 @@ const summarizer_node = async (state: typeof GraphState.State, config?: Runnable
 
   // Extract original request
   const firstMessage = state.messages[0];
-  const originalRequest = typeof firstMessage?.content === 'string' ? firstMessage.content : 'User request';
-  
+  const originalRequest =
+    typeof firstMessage?.content === 'string' ? firstMessage.content : 'User request';
+
   // Compile all gathered information
   const prompt = `Generate a comprehensive answer based on:
   Original Request: ${originalRequest}
@@ -757,7 +770,7 @@ const summarizer_node = async (state: typeof GraphState.State, config?: Runnable
 
 /**
  * Routing function after the planner node
- * 
+ *
  * Determines the next step based on whether research is needed:
  * - If research needed → research_node
  * - Otherwise → tool_node
@@ -796,7 +809,7 @@ async function main() {
     .addEdge('__start__', 'planner_node')
     .addConditionalEdges('planner_node', route_after_plan, {
       research_node: 'research_node',
-      tool_node: 'tool_node'
+      tool_node: 'tool_node',
     })
     .addEdge('research_node', 'tool_node')
     .addEdge('tool_node', 'summarizer_node')
@@ -825,7 +838,7 @@ async function main() {
 
   // Save metrics to file for further analysis
   metricsTracer.writeMetricsToFile(
-    path.join(__dirname, 'logs', `metrics-multimodel-${Date.now()}.json`)
+    path.join(__dirname, 'logs', `metrics-multimodel-${Date.now()}.json`),
   );
 }
 

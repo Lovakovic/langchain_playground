@@ -6,7 +6,9 @@ import { JSONSchemaDraft7, JSONSchemaDraft7Property, ZodPropType, ZodSchemaProps
  * @param {JSONSchemaDraft7 | string} schema - The JSON Schema Draft 7 or its string representation.
  * @returns {ZodObject<ZodSchemaProps> | undefined} The converted Zod schema or undefined if the conversion fails.
  */
-export const convertJSONSchemaDraft7ToZod = (schema: JSONSchemaDraft7 | string): ZodObject<ZodSchemaProps> => {
+export const convertJSONSchemaDraft7ToZod = (
+  schema: JSONSchemaDraft7 | string,
+): ZodObject<ZodSchemaProps> => {
   try {
     const parsedSchema: JSONSchemaDraft7 = parseSchema(schema);
     validateSchemaType(parsedSchema);
@@ -46,11 +48,16 @@ const validateSchemaType = (schema: JSONSchemaDraft7): void => {
  * @param {string[]} [required=[]] - The list of required properties in the JSON schema.
  * @returns {ZodSchemaProps} An object with the converted properties.
  */
-const convertPropertiesToZod = (properties: Record<string, JSONSchemaDraft7Property>, required: string[] = []): ZodSchemaProps => {
+const convertPropertiesToZod = (
+  properties: Record<string, JSONSchemaDraft7Property>,
+  required: string[] = [],
+): ZodSchemaProps => {
   const zodSchemaProps: ZodSchemaProps = {};
 
   for (const key in properties) {
     const prop = properties[key];
+    if (!prop) continue;
+
     let zodProp: ZodTypeAny = convertTypeToZod(prop);
 
     zodProp = handleEnumAndDescription(prop, zodProp);
@@ -108,9 +115,16 @@ const convertTypeToZod = (prop: JSONSchemaDraft7Property): ZodPropType => {
  * @returns {ZodPropType} The modified Zod property.
  * @throws {Error} If the enum values are not an array of strings with at least one element.
  */
-const handleEnumAndDescription = (prop: JSONSchemaDraft7Property, zodProp: ZodPropType): ZodPropType => {
+const handleEnumAndDescription = (
+  prop: JSONSchemaDraft7Property,
+  zodProp: ZodPropType,
+): ZodPropType => {
   if (prop.enum) {
-    if (Array.isArray(prop.enum) && prop.enum.every((_item): _item is string => true) && prop.enum.length > 0) {
+    if (
+      Array.isArray(prop.enum) &&
+      prop.enum.every((_item): _item is string => true) &&
+      prop.enum.length > 0
+    ) {
       zodProp = z.enum(prop.enum as [string, ...string[]]).describe(prop.description ?? '');
     } else {
       throw new Error('Enum values must be an array of strings with at least one element');
@@ -129,7 +143,11 @@ const handleEnumAndDescription = (prop: JSONSchemaDraft7Property, zodProp: ZodPr
  * @param {ZodPropType} zodProp - The Zod property to modify.
  * @returns {ZodPropType} The modified Zod property.
  */
-const handleOptionalProperties = (required: string[], key: string, zodProp: ZodTypeAny): ZodTypeAny => {
+const handleOptionalProperties = (
+  required: string[],
+  key: string,
+  zodProp: ZodTypeAny,
+): ZodTypeAny => {
   if (!required.includes(key)) {
     // Check if the property is already optional
     // In Zod v4+, use .def.typeName to check the type

@@ -36,7 +36,11 @@ async function extractTextFromPDF(pdfPath: string): Promise<any> {
   return await pdf(dataBuffer);
 }
 
-async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPages: number): Promise<{ [pageNumber: number]: string[] }> {
+async function extractImagesFromPDF(
+  pdfPath: string,
+  outputDir: string,
+  totalPages: number,
+): Promise<{ [pageNumber: number]: string[] }> {
   let pdfDocument: pdfjsLib.PDFDocumentProxy | undefined;
   try {
     const dataBuffer = fs.readFileSync(pdfPath);
@@ -57,7 +61,10 @@ async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPag
           const op = operatorList.fnArray[i];
           const args = operatorList.argsArray[i];
 
-          if (op === pdfjsLib.OPS.paintImageXObject || op === pdfjsLib.OPS.paintInlineImageXObject) {
+          if (
+            op === pdfjsLib.OPS.paintImageXObject ||
+            op === pdfjsLib.OPS.paintInlineImageXObject
+          ) {
             try {
               const imgName = args[0];
               const resources = page.commonObjs;
@@ -86,7 +93,6 @@ async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPag
                 }, 2000);
               });
 
-
               if (img && (img as any).data) {
                 imageIndex++;
                 const fileName = `page_${pageNum}_image_${imageIndex}.png`;
@@ -100,7 +106,8 @@ async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPag
                     if (imgData.kind === 'JPEG_IMAGE' || imgData.kind === 'PNG_IMAGE') {
                       fs.writeFileSync(filePath, imageBuffer);
                     } else {
-                      const expectedChannels = imgData.channels || (imageBuffer.length / (imgData.width * imgData.height));
+                      const expectedChannels =
+                        imgData.channels || imageBuffer.length / (imgData.width * imgData.height);
                       let actualChannels = Math.floor(expectedChannels);
 
                       if (actualChannels < 1) actualChannels = 1;
@@ -132,17 +139,23 @@ async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPag
                       }
 
                       // Check if bufferForSharp has enough data for the determined channels and dimensions
-                      const minimumRequiredSize = imgData.width * imgData.height * (sharpChannels > 0 ? sharpChannels : 1); // At least 1 channel
-                      if (bufferForSharp.length >= minimumRequiredSize * 0.9) { // Allow slight tolerance
+                      const minimumRequiredSize =
+                        imgData.width * imgData.height * (sharpChannels > 0 ? sharpChannels : 1); // At least 1 channel
+                      if (bufferForSharp.length >= minimumRequiredSize * 0.9) {
+                        // Allow slight tolerance
                         await sharp(bufferForSharp, {
                           raw: {
                             width: imgData.width,
                             height: imgData.height,
-                            channels: sharpChannels
-                          }
-                        }).png().toFile(filePath);
+                            channels: sharpChannels,
+                          },
+                        })
+                          .png()
+                          .toFile(filePath);
                       } else {
-                        throw new Error(`Insufficient processed image data for sharp: expected at least ${minimumRequiredSize}, got ${bufferForSharp.length}`);
+                        throw new Error(
+                          `Insufficient processed image data for sharp: expected at least ${minimumRequiredSize}, got ${bufferForSharp.length}`,
+                        );
                       }
                     }
 
@@ -153,15 +166,21 @@ async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPag
                       const rawFilePath = path.join(outputDir, rawFileName);
                       fs.writeFileSync(rawFilePath, Buffer.from(imgData.data));
                       pageImages.push(rawFileName);
-                      console.warn(`[Page ${pageNum} Image ${imageIndex}] Sharp failed, saved as raw data: ${rawFileName} - ${(sharpError as Error).message}`);
+                      console.warn(
+                        `[Page ${pageNum} Image ${imageIndex}] Sharp failed, saved as raw data: ${rawFileName} - ${(sharpError as Error).message}`,
+                      );
                     } catch (rawError) {
-                      console.error(`[Page ${pageNum} Image ${imageIndex}] Failed to save image as PNG or raw: ${(sharpError as Error).message}, ${(rawError as Error).message}`);
+                      console.error(
+                        `[Page ${pageNum} Image ${imageIndex}] Failed to save image as PNG or raw: ${(sharpError as Error).message}, ${(rawError as Error).message}`,
+                      );
                     }
                   }
                 }
               }
             } catch (imgError) {
-              console.warn(`[Page ${pageNum}] Could not process image operation: ${(imgError as Error).message}`);
+              console.warn(
+                `[Page ${pageNum}] Could not process image operation: ${(imgError as Error).message}`,
+              );
             }
           }
         }
@@ -172,7 +191,6 @@ async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPag
         } else {
           console.log(`No images extracted on page ${pageNum}`);
         }
-
       } catch (pageError) {
         console.error(`Error processing page ${pageNum}:`, (pageError as Error).message);
       }
@@ -182,7 +200,7 @@ async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPag
       try {
         await pdfDocument.destroy();
       } catch (destroyError) {
-        console.warn("Error destroying PDF document:", destroyError);
+        console.warn('Error destroying PDF document:', destroyError);
       }
     }
 
@@ -193,7 +211,7 @@ async function extractImagesFromPDF(pdfPath: string, outputDir: string, totalPag
       try {
         await pdfDocument.destroy();
       } catch (destroyError) {
-        console.warn("Error destroying PDF document after error:", destroyError);
+        console.warn('Error destroying PDF document after error:', destroyError);
       }
     }
     return {};
@@ -234,7 +252,9 @@ async function pdfToJson(pdfPath: string): Promise<void> {
     }
 
     if (textPages.length !== totalPages && totalPages > 1) {
-      console.warn(`Text parsing resulted in ${textPages.length} chunks, but PDF has ${totalPages} pages. Attempting to distribute text evenly.`);
+      console.warn(
+        `Text parsing resulted in ${textPages.length} chunks, but PDF has ${totalPages} pages. Attempting to distribute text evenly.`,
+      );
       const textLength = pdfData.text.length;
       const charsPerPage = Math.ceil(textLength / totalPages);
       const distributedTextPages = [];
@@ -245,15 +265,18 @@ async function pdfToJson(pdfPath: string): Promise<void> {
       }
       textPages = distributedTextPages; // Use the distributed text
     } else if (textPages.length > totalPages) {
-      console.warn(`Text parsing resulted in ${textPages.length} chunks, which is more than the PDF's ${totalPages} pages. Truncating text chunks to match page count.`);
+      console.warn(
+        `Text parsing resulted in ${textPages.length} chunks, which is more than the PDF's ${totalPages} pages. Truncating text chunks to match page count.`,
+      );
       textPages = textPages.slice(0, totalPages);
     } else if (textPages.length < totalPages && textPages.length > 1) {
-      console.warn(`Text parsing resulted in ${textPages.length} chunks, which is less than the PDF's ${totalPages} pages. Padding with empty pages.`);
-      while(textPages.length < totalPages) {
+      console.warn(
+        `Text parsing resulted in ${textPages.length} chunks, which is less than the PDF's ${totalPages} pages. Padding with empty pages.`,
+      );
+      while (textPages.length < totalPages) {
         textPages.push('');
       }
     }
-
 
     const pages: PageData[] = [];
 
@@ -265,7 +288,7 @@ async function pdfToJson(pdfPath: string): Promise<void> {
       pages.push({
         pageNumber,
         text: pageText.trim(),
-        imagePaths: pageImagePaths.map(imgPath => path.join('images', path.basename(imgPath)))
+        imagePaths: pageImagePaths.map((imgPath) => path.join('images', path.basename(imgPath))),
       });
     }
 
@@ -274,18 +297,18 @@ async function pdfToJson(pdfPath: string): Promise<void> {
         title: pdfData.info?.Title,
         author: pdfData.info?.Author,
         creator: pdfData.info?.Creator,
-        totalPages: totalPages
+        totalPages: totalPages,
       },
-      pages
+      pages,
     };
 
     const jsonOutputPath = path.join(outputDir, `${pdfName}.json`);
     fs.writeFileSync(jsonOutputPath, JSON.stringify(result, null, 2));
 
     const textOutputPath = path.join(outputDir, `${pdfName}.txt`);
-    const textContent = pages.map(page => 
-      `--- Page ${page.pageNumber} ---\n${page.text}`
-    ).join('\n\n');
+    const textContent = pages
+      .map((page) => `--- Page ${page.pageNumber} ---\n${page.text}`)
+      .join('\n\n');
     fs.writeFileSync(textOutputPath, textContent);
 
     console.log(`Extraction complete!`);
@@ -298,7 +321,6 @@ async function pdfToJson(pdfPath: string): Promise<void> {
 
     processExited = true;
     process.exit(0);
-
   } catch (error) {
     console.error('Error processing PDF:', error);
     if (!processExited) {

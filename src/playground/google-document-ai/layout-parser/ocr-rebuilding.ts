@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
 import { ChatVertexAI } from '@langchain/google-vertexai';
-import {ContentBlock, HumanMessage, SystemMessage} from '@langchain/core/messages';
+import { ContentBlock, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -10,8 +10,12 @@ import { fileURLToPath } from 'url';
 import { fromBuffer } from 'pdf2pic';
 import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore
-import { DocumentAIProcessor, formatTextWithPageDelimiters, processDocumentByPages, type DocumentTextResult } from './index.ts';
-import type { _MessageContentComplex } from '@langchain/core/messages';
+import {
+  DocumentAIProcessor,
+  formatTextWithPageDelimiters,
+  processDocumentByPages,
+  type DocumentTextResult,
+} from './index.ts';
 
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
@@ -96,7 +100,6 @@ Now, process the entire document provided and return a single, structured Markdo
  */
 class OCRRebuilder {
   private model: ChatVertexAI;
-  private : DocumentAIProcessor;
   private readonly targetPixelWidth = 2400;
   private readonly minDpi = 150;
   private readonly maxDpi = 300;
@@ -108,26 +111,27 @@ class OCRRebuilder {
       temperature: 0.0,
     });
 
-    // Initialize Document AI processor from improved.ts
-    this.documentProcessor = new DocumentAIProcessor();
-
     console.log('🤖 OCR Rebuilding Script - Enhanced Pipeline');
-    console.log('=' .repeat(60));
+    console.log('='.repeat(60));
     console.log('📋 Pipeline: PDF → Images + Document AI → LLM (Images + Text) → Clean Text');
   }
 
   /**
    * Get PDF dimensions using pdfinfo (same as monkey-ai)
    */
-  private async getPdfDimensions(pdfPath: string): Promise<{ width: number; height: number } | null> {
+  private async getPdfDimensions(
+    pdfPath: string,
+  ): Promise<{ width: number; height: number } | null> {
     try {
       const { stdout } = await execAsync(`pdfinfo "${pdfPath}"`);
       const sizeMatch = stdout.match(/Page size:\s*(\d+(?:\.\d+)?)\s+x\s+(\d+(?:\.\d+)?)\s+pts/);
-      if (sizeMatch) {
+      if (sizeMatch && sizeMatch[1] && sizeMatch[2]) {
         return { width: parseFloat(sizeMatch[1]), height: parseFloat(sizeMatch[2]) };
       }
     } catch (error) {
-      console.warn('⚠️ Could not get PDF dimensions via pdfinfo. Poppler-utils might be missing. Using fallback DPI.');
+      console.warn(
+        '⚠️ Could not get PDF dimensions via pdfinfo. Poppler-utils might be missing. Using fallback DPI.',
+      );
     }
     return null;
   }
@@ -148,7 +152,11 @@ class OCRRebuilder {
   /**
    * Convert PDF to images using exact monkey-ai settings
    */
-  private async getImagesFromPdf(pdfBuffer: Buffer, tempDir: string, adaptiveDPI: number): Promise<Map<number, Buffer>> {
+  private async getImagesFromPdf(
+    pdfBuffer: Buffer,
+    tempDir: string,
+    adaptiveDPI: number,
+  ): Promise<Map<number, Buffer>> {
     const converter = fromBuffer(pdfBuffer, {
       density: adaptiveDPI,
       format: 'jpeg',
@@ -169,25 +177,28 @@ class OCRRebuilder {
   /**
    * Process raw OCR text with images and rebuild using LLM
    */
-  async processOCRTextWithImages(rawText: string, imageBuffersMap: Map<number, Buffer>): Promise<string> {
+  async processOCRTextWithImages(
+    rawText: string,
+    imageBuffersMap: Map<number, Buffer>,
+  ): Promise<string> {
     console.log('🧠 Processing raw OCR text + images with LLM...');
-    
+
     // Count the number of pages from the input text
     const pageMatches = rawText.match(/--- Page \d+ starts ---/g);
     const totalPageCount = pageMatches ? pageMatches.length : 1;
-    
+
     console.log(`📊 Detected ${totalPageCount} pages in the document`);
     console.log(`🖼️ Available images for ${imageBuffersMap.size} pages`);
 
     // Convert the format from improved.ts to monkey-ai format
     const convertedText = this.convertToMonkeyAIFormat(rawText);
-    
+
     // Create the enhanced prompt that mentions images
     const prompt = createMonolithicPreprocessingPrompt(totalPageCount);
-    
+
     // Build message content with both images and text
     const messageContent: ContentBlock[] = [];
-    
+
     // Add images first (one per page)
     for (let pageNum = 1; pageNum <= totalPageCount; pageNum++) {
       const imageBuffer = imageBuffersMap.get(pageNum);
@@ -198,14 +209,11 @@ class OCRRebuilder {
         });
       }
     }
-    
+
     // Add the OCR text
     messageContent.push({ type: 'text', text: convertedText });
-    
-    const messages = [
-      new SystemMessage(prompt),
-      new HumanMessage({ content: messageContent })
-    ];
+
+    const messages = [new SystemMessage(prompt), new HumanMessage({ content: messageContent })];
 
     console.log('🚀 Calling Gemini 2.5-pro with images + OCR text...');
     const startTime = Date.now();
@@ -213,10 +221,10 @@ class OCRRebuilder {
     try {
       const response = await this.model.invoke(messages);
       const processedText = response.content as string;
-      
+
       const processingTime = Date.now() - startTime;
       console.log(`✅ LLM processing completed in ${processingTime}ms`);
-      
+
       return processedText;
     } catch (error) {
       console.error('❌ Error during LLM processing:', error);
@@ -230,25 +238,24 @@ class OCRRebuilder {
   private convertToMonkeyAIFormat(text: string): string {
     // Convert from "--- Page X starts ---" to "--- CONTENT FROM PAGE X BEGINS ---"
     let converted = text.replace(
-      /--- Page (\d+) starts ---/g, 
-      '--- CONTENT FROM PAGE $1 BEGINS ---'
+      /--- Page (\d+) starts ---/g,
+      '--- CONTENT FROM PAGE $1 BEGINS ---',
     );
-    
+
     // Convert from "--- Page X ends ---" to "--- CONTENT FROM PAGE X ENDS ---"
-    converted = converted.replace(
-      /--- Page (\d+) ends ---/g, 
-      '--- CONTENT FROM PAGE $1 ENDS ---'
-    );
-    
+    converted = converted.replace(/--- Page (\d+) ends ---/g, '--- CONTENT FROM PAGE $1 ENDS ---');
+
     return converted;
   }
 
   /**
    * Process PDF with both Document AI (OCR) and image conversion
    */
-  async processWithDocumentAIAndImages(pdfPath: string): Promise<{ rawText: string; imageBuffersMap: Map<number, Buffer> }> {
+  async processWithDocumentAIAndImages(
+    pdfPath: string,
+  ): Promise<{ rawText: string; imageBuffersMap: Map<number, Buffer> }> {
     console.log(`📖 Processing PDF with Document AI + Images: ${pdfPath}`);
-    
+
     if (!fs.existsSync(pdfPath)) {
       throw new Error(`PDF file not found: ${pdfPath}`);
     }
@@ -256,40 +263,42 @@ class OCRRebuilder {
     const buffer = fs.readFileSync(pdfPath);
     const tempDir = path.join(os.tmpdir(), `ocr-rebuilding-${uuidv4()}`);
     await fs.promises.mkdir(tempDir, { recursive: true });
-    
+
     try {
       // Step 1: Calculate adaptive DPI
       console.log('🔧 Calculating adaptive DPI...');
       const adaptiveDPI = await this.calculateAdaptiveDPI(pdfPath);
       console.log(`📐 Using DPI: ${adaptiveDPI}`);
-      
+
       // Step 2: Convert PDF to images (parallel with Document AI)
       console.log('🖼️ Converting PDF to images...');
       const imageStartTime = Date.now();
       const imageBuffersMap = await this.getImagesFromPdf(buffer, tempDir, adaptiveDPI);
       const imageTime = Date.now() - imageStartTime;
-      console.log(`✅ Image conversion completed in ${imageTime}ms (${imageBuffersMap.size} pages)`);
-      
+      console.log(
+        `✅ Image conversion completed in ${imageTime}ms (${imageBuffersMap.size} pages)`,
+      );
+
       // Step 3: Process with Document AI
       console.log('🚀 Calling Google Document AI...');
       const docAIStartTime = Date.now();
-      
+
       const processorId = process.env['DOCUMENT_AI_PROCESSOR_ID']!;
       const location = process.env['DOCUMENT_AI_LOCATION']!;
       const projectId = process.env['GOOGLE_CLOUD_PROJECT_ID']!;
 
       if (!processorId || !location || !projectId) {
         throw new Error(
-          'Missing required Document AI environment variables: DOCUMENT_AI_PROCESSOR_ID, DOCUMENT_AI_LOCATION, GOOGLE_CLOUD_PROJECT_ID'
+          'Missing required Document AI environment variables: DOCUMENT_AI_PROCESSOR_ID, DOCUMENT_AI_LOCATION, GOOGLE_CLOUD_PROJECT_ID',
         );
       }
-      
+
       const { DocumentProcessorServiceClient } = await import('@google-cloud/documentai');
-      
+
       const client = new DocumentProcessorServiceClient({
         apiEndpoint: `${location}-documentai.googleapis.com`,
       });
-      
+
       const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
       const encodedContent = buffer.toString('base64');
 
@@ -313,19 +322,20 @@ class OCRRebuilder {
 
       // Convert Document AI response to the format that index.ts would create
       const documentResult = processDocumentByPages(document.documentLayout, docAITime);
-      
+
       // Format with page delimiters
       const formattedText = formatTextWithPageDelimiters(documentResult);
-      
-      console.log(`📄 Extracted ${documentResult.totalPages} pages with ${formattedText.length} characters`);
-      
+
+      console.log(
+        `📄 Extracted ${documentResult.totalPages} pages with ${formattedText.length} characters`,
+      );
+
       return { rawText: formattedText, imageBuffersMap };
-      
     } finally {
       // Cleanup temp directory
-      await fs.promises.rm(tempDir, { recursive: true, force: true }).catch((e) => 
-        console.warn(`Failed cleanup: ${tempDir}`, e)
-      );
+      await fs.promises
+        .rm(tempDir, { recursive: true, force: true })
+        .catch((e) => console.warn(`Failed cleanup: ${tempDir}`, e));
     }
   }
 
@@ -344,15 +354,15 @@ class OCRRebuilder {
 
       // Step 3: Save both original OCR and rebuilt text
       const baseName = path.basename(pdfPath, path.extname(pdfPath));
-      
+
       // Save original OCR text that was sent to LLM
       const ocrPath = path.join(currentDir, `${baseName}-original-ocr.txt`);
       fs.writeFileSync(ocrPath, rawText);
-      
-      // Save rebuilt text as markdown 
+
+      // Save rebuilt text as markdown
       const markdownPath = path.join(currentDir, `${baseName}-rebuilt.md`);
       fs.writeFileSync(markdownPath, rebuiltText);
-      
+
       console.log('\n💾 Output files saved:');
       console.log(`   Original OCR: ${ocrPath}`);
       console.log(`   Rebuilt markdown: ${markdownPath}`);
@@ -362,10 +372,10 @@ class OCRRebuilder {
       console.log(`📄 Raw OCR: ${rawText.length} characters`);
       console.log(`🖼️ Images processed: ${imageBuffersMap.size} pages`);
       console.log(`📄 LLM Processed: ${rebuiltText.length} characters`);
-      
+
       const pageBreakCount = (rebuiltText.match(/--- PAGE_BREAK ---/g) || []).length;
       console.log(`📖 Page breaks preserved: ${pageBreakCount}`);
-      
+
       console.log('\n🎉 Enhanced OCR rebuilding pipeline finished!');
       console.log('📊 Summary:');
       console.log('   - Converted PDF to high-quality images with adaptive DPI');
@@ -377,7 +387,6 @@ class OCRRebuilder {
       console.log('   - Fixed OCR spatial issues using visual + textual information');
       console.log('   - Maintained content fidelity while improving readability');
       console.log('   - Saved original OCR text and clean markdown output');
-
     } catch (error) {
       console.error('💥 Error in enhanced OCR rebuilding pipeline:', error);
       process.exit(1);
@@ -389,7 +398,7 @@ async function main() {
   try {
     // Get PDF path from command line argument
     const pdfPath = process.argv[2];
-    
+
     if (!pdfPath) {
       console.error('❌ Please provide a PDF file path as an argument');
       console.log('Usage: npx ts-node ocr-rebuilding.ts <path-to-pdf>');
@@ -397,9 +406,7 @@ async function main() {
     }
 
     // Resolve path (relative or absolute)
-    const resolvedPath = path.isAbsolute(pdfPath) 
-      ? pdfPath 
-      : path.resolve(currentDir, pdfPath);
+    const resolvedPath = path.isAbsolute(pdfPath) ? pdfPath : path.resolve(currentDir, pdfPath);
 
     const rebuilder = new OCRRebuilder();
     await rebuilder.run(resolvedPath);

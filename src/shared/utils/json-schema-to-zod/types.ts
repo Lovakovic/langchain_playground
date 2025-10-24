@@ -1,15 +1,4 @@
-import {
-  _ZodAny,
-  _ZodArray,
-  _ZodBoolean,
-  _ZodEnum,
-  _ZodNull,
-  _ZodNumber,
-  _ZodObject,
-  _ZodOptional,
-  _ZodString,
-  ZodTypeAny,
-} from 'zod';
+import { ZodTypeAny } from 'zod';
 
 export type JSONSchemaDraft7Property =
   | { type: 'string'; description?: string; enum?: string[] }

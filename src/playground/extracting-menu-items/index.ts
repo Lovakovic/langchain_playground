@@ -27,21 +27,36 @@ interface ExtractMenuItemsInput {
 
 const menuItemSchema = z.object({
   originalName: z.string().describe('The original name of the menu item as it appears on the menu'),
-  englishName: z.string().optional().describe('English translation of the item name (if original is not in English)'),
+  englishName: z
+    .string()
+    .optional()
+    .describe('English translation of the item name (if original is not in English)'),
   description: z.string().optional().describe('Description of the menu item'),
   price: z.number().describe('Price of the item as a decimal number'),
   currency: z.string().optional().describe('Currency code (e.g., EUR, USD)'),
-  ingredients: z.array(z.string()).optional().describe('List of main ingredients if explicitly mentioned'),
-  notes: z.string().optional().describe('Special notes like dietary info (vegan, gluten-free, etc.)'),
-  metadata: z.object({
-    position: z.number().optional().describe('Position/order in the original menu'),
-    section: z.string().optional().describe('Menu section (e.g., Appetizers, Main Courses)'),
-  }).optional().describe('Additional metadata about the item'),
+  ingredients: z
+    .array(z.string())
+    .optional()
+    .describe('List of main ingredients if explicitly mentioned'),
+  notes: z
+    .string()
+    .optional()
+    .describe('Special notes like dietary info (vegan, gluten-free, etc.)'),
+  metadata: z
+    .object({
+      position: z.number().optional().describe('Position/order in the original menu'),
+      section: z.string().optional().describe('Menu section (e.g., Appetizers, Main Courses)'),
+    })
+    .optional()
+    .describe('Additional metadata about the item'),
 });
 
 const extractionSchema = z.object({
   items: z.array(menuItemSchema).describe('Array of all extracted menu items'),
-  remarks: z.string().optional().describe('General observations about the menu (language, structure, special notes)'),
+  remarks: z
+    .string()
+    .optional()
+    .describe('General observations about the menu (language, structure, special notes)'),
 });
 
 const extractMenuItemsTool = new DynamicStructuredTool({
@@ -70,15 +85,15 @@ const extractMenuItemsTool = new DynamicStructuredTool({
 
 async function loadImages(imagesDir: string): Promise<Buffer[]> {
   const files = await fs.readdir(imagesDir);
-  const imageFiles = files.filter(f => f.match(/\.(jpg|jpeg|png)$/i)).sort();
-  
+  const imageFiles = files.filter((f) => f.match(/\.(jpg|jpeg|png)$/i)).sort();
+
   const images: Buffer[] = [];
   for (const file of imageFiles) {
     const imagePath = path.join(imagesDir, file);
     const imageBuffer = await fs.readFile(imagePath);
     images.push(imageBuffer);
   }
-  
+
   return images;
 }
 
@@ -113,19 +128,27 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 };
 
 function calculateCost(tokenUsage: TokenUsage, pricing: ModelPricing): number {
-  const inputCost = (tokenUsage.inputTokens || 0) / 1_000_000 * pricing.inputPricePerMillion;
-  const outputCost = (tokenUsage.outputTokens || 0) / 1_000_000 * pricing.outputPricePerMillion;
+  const inputCost = ((tokenUsage.inputTokens || 0) / 1_000_000) * pricing.inputPricePerMillion;
+  const outputCost = ((tokenUsage.outputTokens || 0) / 1_000_000) * pricing.outputPricePerMillion;
   return inputCost + outputCost;
 }
 
 async function extractWithModel(
   modelName: string,
   model: any,
-  images: Buffer[]
-): Promise<{ modelName: string; result: any; duration: number; tokenUsage: TokenUsage; cost?: number; startTime: number; endTime: number }> {
+  images: Buffer[],
+): Promise<{
+  modelName: string;
+  result: any;
+  duration: number;
+  tokenUsage: TokenUsage;
+  cost?: number;
+  startTime: number;
+  endTime: number;
+}> {
   const startTime = Date.now();
-  
-  const imageMessages = images.map(buffer => ({
+
+  const imageMessages = images.map((buffer) => ({
     type: 'image_url' as const,
     image_url: {
       url: `data:image/jpeg;base64,${buffer.toString('base64')}`,
@@ -143,9 +166,11 @@ async function extractWithModel(
   });
 
   try {
-    const response = await model.bindTools([extractMenuItemsTool], {
-      tool_choice: 'any',
-    }).invoke([message]);
+    const response = await model
+      .bindTools([extractMenuItemsTool], {
+        tool_choice: 'any',
+      })
+      .invoke([message]);
 
     const endTime = Date.now();
     const duration = endTime - startTime;
@@ -168,7 +193,7 @@ async function extractWithModel(
       };
     } else if (response.response_metadata) {
       const metadata = response.response_metadata;
-      
+
       // OpenAI format
       if (metadata.usage) {
         tokenUsage = {
@@ -176,7 +201,7 @@ async function extractWithModel(
           outputTokens: metadata.usage.completion_tokens,
           totalTokens: metadata.usage.total_tokens,
         };
-      } 
+      }
       // Gemini format
       else if (metadata.usage_metadata) {
         tokenUsage = {
@@ -189,9 +214,10 @@ async function extractWithModel(
 
     // Calculate cost if we have pricing for this model
     const pricing = MODEL_PRICING[modelName];
-    const cost = pricing && tokenUsage.inputTokens && tokenUsage.outputTokens
-      ? calculateCost(tokenUsage, pricing)
-      : undefined;
+    const cost =
+      pricing && tokenUsage.inputTokens && tokenUsage.outputTokens
+        ? calculateCost(tokenUsage, pricing)
+        : undefined;
 
     return {
       modelName,
@@ -224,47 +250,45 @@ async function main() {
   const images = await loadImages(imagesDir);
   console.log(`Loaded ${images.length} images\n`);
 
-  if(!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
+  if (!process.env['GOOGLE_APPLICATION_CREDENTIALS']) {
     throw new Error(
-      "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. " +
-      "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file."
+      'GOOGLE_APPLICATION_CREDENTIALS environment variable is not set. ' +
+        "Gemini agent cannot be initialized. Ensure it's set to the path of your service account key file.",
     );
   }
 
-  if(!process.env['OPENAI_API_KEY']) {
-    throw new Error(
-      "OPENAI_API_KEY environment variable is not set. "
-    );
+  if (!process.env['OPENAI_API_KEY']) {
+    throw new Error('OPENAI_API_KEY environment variable is not set. ');
   }
 
-  const geminiFlashModel = new ChatVertexAI({ 
+  const geminiFlashModel = new ChatVertexAI({
     streaming: false,
     temperature: 0.7,
-    maxRetries: 2, 
-    model: 'gemini-2.5-flash-preview-05-20'
+    maxRetries: 2,
+    model: 'gemini-2.5-flash-preview-05-20',
   });
-  
-  const geminiProModel = new ChatVertexAI({ 
+
+  const geminiProModel = new ChatVertexAI({
     streaming: false,
     temperature: 0.7,
-    maxRetries: 2, 
-    model: 'gemini-2.5-pro'
+    maxRetries: 2,
+    model: 'gemini-2.5-pro',
   });
-  
-  const openaiO4Model = new ChatOpenAI({ 
+
+  const openaiO4Model = new ChatOpenAI({
     streaming: false,
     model: 'o4-mini',
     reasoning: {
-      effort: "high",
+      effort: 'high',
     },
     maxRetries: 2,
   });
-  
-  const openaiO3Model = new ChatOpenAI({ 
+
+  const openaiO3Model = new ChatOpenAI({
     streaming: false,
     model: 'o3',
     reasoning: {
-      effort: "high",
+      effort: 'high',
     },
     maxRetries: 2,
   });
@@ -287,38 +311,46 @@ async function main() {
   const globalStartTime = Date.now();
 
   // Create promises for all models - start them all at once
-  const modelPromises = models.map(({ name, instance }) => 
-    extractWithModel(name, instance, images)
+  const modelPromises = models.map(({ name, instance }) =>
+    extractWithModel(name, instance, images),
   );
 
   // Wait for all to complete and collect results
   const results = await Promise.all(modelPromises);
-  
+
   // Sort results by completion time to show which finished first
   results.sort((a, b) => a.endTime - b.endTime);
-  
+
   // Display results in order of completion
   for (const result of results) {
     const relativeStartTime = ((result.startTime - globalStartTime) / 1000).toFixed(2);
     const relativeEndTime = ((result.endTime - globalStartTime) / 1000).toFixed(2);
-    
+
     console.log(`\n${result.modelName}:`);
-    console.log(`Started at: +${relativeStartTime}s, Completed at: +${relativeEndTime}s, Duration: ${(result.duration / 1000).toFixed(2)}s`);
+    console.log(
+      `Started at: +${relativeStartTime}s, Completed at: +${relativeEndTime}s, Duration: ${(result.duration / 1000).toFixed(2)}s`,
+    );
     console.log('-'.repeat(70));
-    
+
     // Display token usage and cost
     if (result.tokenUsage.totalTokens) {
-      console.log(`Tokens - Input: ${result.tokenUsage.inputTokens || 'N/A'}, Output: ${result.tokenUsage.outputTokens || 'N/A'}, Total: ${result.tokenUsage.totalTokens}`);
+      console.log(
+        `Tokens - Input: ${result.tokenUsage.inputTokens || 'N/A'}, Output: ${result.tokenUsage.outputTokens || 'N/A'}, Total: ${result.tokenUsage.totalTokens}`,
+      );
       if (result.cost !== undefined) {
-        console.log(`Cost: $${result.cost.toFixed(6)} (Input: $${((result.tokenUsage.inputTokens || 0) / 1_000_000 * (MODEL_PRICING[result.modelName]?.inputPricePerMillion || 0)).toFixed(6)}, Output: $${((result.tokenUsage.outputTokens || 0) / 1_000_000 * (MODEL_PRICING[result.modelName]?.outputPricePerMillion || 0)).toFixed(6)})`);
+        console.log(
+          `Cost: $${result.cost.toFixed(6)} (Input: $${(((result.tokenUsage.inputTokens || 0) / 1_000_000) * (MODEL_PRICING[result.modelName]?.inputPricePerMillion || 0)).toFixed(6)}, Output: $${(((result.tokenUsage.outputTokens || 0) / 1_000_000) * (MODEL_PRICING[result.modelName]?.outputPricePerMillion || 0)).toFixed(6)})`,
+        );
         totalCost += result.cost;
       }
     } else if (result.tokenUsage.inputTokens || result.tokenUsage.outputTokens) {
-      console.log(`Tokens - Input: ${result.tokenUsage.inputTokens || 'N/A'}, Output: ${result.tokenUsage.outputTokens || 'N/A'}`);
+      console.log(
+        `Tokens - Input: ${result.tokenUsage.inputTokens || 'N/A'}, Output: ${result.tokenUsage.outputTokens || 'N/A'}`,
+      );
     } else {
       console.log('Token usage: Not available');
     }
-    
+
     if (result.result.error) {
       console.log(`Error: ${result.result.error}`);
     } else {
@@ -326,7 +358,7 @@ async function main() {
       if (result.result.remarks) {
         console.log(`Remarks: ${result.result.remarks}`);
       }
-      
+
       if (result.result.items && result.result.items.length > 0) {
         console.log('\nFirst 3 items:');
         result.result.items.slice(0, 3).forEach((item: any, idx: number) => {
@@ -338,17 +370,21 @@ async function main() {
         });
       }
     }
-    
+
     // Save result
     if (!result.result.error) {
       const filename = `${result.modelName.toLowerCase().replace(/\s+/g, '-')}-results.json`;
       await fs.writeFile(
         path.join(outputDir, filename),
-        JSON.stringify({ result: result.result, tokenUsage: result.tokenUsage, cost: result.cost }, null, 2)
+        JSON.stringify(
+          { result: result.result, tokenUsage: result.tokenUsage, cost: result.cost },
+          null,
+          2,
+        ),
       );
       console.log(`\nResults saved to: ${filename}`);
     }
-    
+
     console.log('\n' + '='.repeat(70) + '\n');
   }
 

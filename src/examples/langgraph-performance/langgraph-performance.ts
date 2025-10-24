@@ -14,12 +14,11 @@
  * Run with: npx ts-node src/examples/langgraph-performance/index.ts
  */
 
-import { performance } from "perf_hooks";
-import { createReActAgent } from "../react_agent/react_agent";
-import { MemorySaver } from "@langchain/langgraph";
-import dotenv from "dotenv";
-import { serialize } from "v8";
-import * as _util from "_util";
+import { performance } from 'perf_hooks';
+import { createReActAgent } from '../react_agent/react_agent';
+import { MemorySaver } from '@langchain/langgraph';
+import dotenv from 'dotenv';
+import { serialize } from 'v8';
 
 dotenv.config();
 
@@ -108,7 +107,7 @@ function calculateDeepSize(obj: any, seen = new WeakSet()): number {
 function inspectGraphStructure(graph: any): any {
   const structure: any = {
     type: graph.constructor?.name || 'Unknown',
-    properties: []
+    properties: [],
   };
 
   try {
@@ -154,7 +153,7 @@ function measureGraphSize(graph: any): {
   deepSize: number;
   estimatedSize: number;
   kb: number;
-  metadata: any
+  metadata: any;
 } {
   let v8Size = 0;
   let deepSize = 0;
@@ -179,7 +178,7 @@ function measureGraphSize(graph: any): {
   const structure = inspectGraphStructure(graph);
 
   // Use the best available measurement
-  const estimatedSize = v8Size > 0 ? v8Size : (deepSize > 0 ? deepSize : 0);
+  const estimatedSize = v8Size > 0 ? v8Size : deepSize > 0 ? deepSize : 0;
 
   return {
     v8Size,
@@ -192,9 +191,9 @@ function measureGraphSize(graph: any): {
       structure,
       measurements: {
         v8Serialization: v8Size > 0 ? `${v8Size} bytes` : 'Failed',
-        deepCalculation: deepSize > 0 ? `${deepSize} bytes` : 'Failed'
-      }
-    }
+        deepCalculation: deepSize > 0 ? `${deepSize} bytes` : 'Failed',
+      },
+    },
   };
 }
 
@@ -219,7 +218,7 @@ async function runSingleBenchmark(withCheckpointer: boolean): Promise<{
 
   return {
     compilationTime,
-    graphSize
+    graphSize,
   };
 }
 
@@ -227,14 +226,16 @@ async function runSingleBenchmark(withCheckpointer: boolean): Promise<{
  * Run parallel compilation benchmark - compiles multiple graphs simultaneously
  */
 async function runParallelBenchmark(count: number = 100, withCheckpointer: boolean = false) {
-  console.log(`\n🚀 Parallel Compilation Benchmark: ${count} graphs ${withCheckpointer ? 'WITH' : 'WITHOUT'} checkpointer`);
-  console.log("─".repeat(60));
+  console.log(
+    `\n🚀 Parallel Compilation Benchmark: ${count} graphs ${withCheckpointer ? 'WITH' : 'WITHOUT'} checkpointer`,
+  );
+  console.log('─'.repeat(60));
 
   const startTime = performance.now();
 
   // Create array of compilation promises
   const compilationPromises = Array.from({ length: count }, () =>
-    runSingleBenchmark(withCheckpointer)
+    runSingleBenchmark(withCheckpointer),
   );
 
   // Run all compilations in parallel
@@ -244,7 +245,7 @@ async function runParallelBenchmark(count: number = 100, withCheckpointer: boole
   const totalTime = endTime - startTime;
 
   // Extract individual compilation times
-  const compilationTimes = results.map(r => r.compilationTime);
+  const compilationTimes = results.map((r) => r.compilationTime);
   const stats = calculateStats(compilationTimes);
 
   // Calculate total graph size (all graphs combined)
@@ -264,14 +265,24 @@ async function runParallelBenchmark(count: number = 100, withCheckpointer: boole
   console.log(`   Max:     ${stats.max.toFixed(2)} ms`);
   console.log(`   Std Dev: ${stats.stdDev.toFixed(2)} ms`);
 
-  console.log(`\n📦 Graph Size (per graph):`);
-  console.log(`   V8 Serialization: ${firstGraphSize.v8Size > 0 ? `${firstGraphSize.v8Size.toLocaleString()} bytes (${(firstGraphSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`);
-  console.log(`   Deep Calculation: ${firstGraphSize.deepSize > 0 ? `${firstGraphSize.deepSize.toLocaleString()} bytes (${(firstGraphSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`);
-  console.log(`   Estimated Size:   ${avgGraphSize.toLocaleString()} bytes (${(avgGraphSize / 1024).toFixed(2)} KB)`);
-  console.log(`\n   Total (${count} graphs): ${totalGraphSize.toLocaleString()} bytes (${(totalGraphSize / 1024 / 1024).toFixed(2)} MB)`);
+  if (firstGraphSize) {
+    console.log(`\n📦 Graph Size (per graph):`);
+    console.log(
+      `   V8 Serialization: ${firstGraphSize.v8Size > 0 ? `${firstGraphSize.v8Size.toLocaleString()} bytes (${(firstGraphSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`,
+    );
+    console.log(
+      `   Deep Calculation: ${firstGraphSize.deepSize > 0 ? `${firstGraphSize.deepSize.toLocaleString()} bytes (${(firstGraphSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`,
+    );
+    console.log(
+      `   Estimated Size:   ${avgGraphSize.toLocaleString()} bytes (${(avgGraphSize / 1024).toFixed(2)} KB)`,
+    );
+    console.log(
+      `\n   Total (${count} graphs): ${totalGraphSize.toLocaleString()} bytes (${(totalGraphSize / 1024 / 1024).toFixed(2)} MB)`,
+    );
 
-  console.log(`\n🔍 Graph Structure:`);
-  console.log(`   ${JSON.stringify(firstGraphSize.metadata.structure, null, 2)}`);
+    console.log(`\n🔍 Graph Structure:`);
+    console.log(`   ${JSON.stringify(firstGraphSize.metadata.structure, null, 2)}`);
+  }
 
   return {
     totalTime,
@@ -280,7 +291,7 @@ async function runParallelBenchmark(count: number = 100, withCheckpointer: boole
     individualStats: stats,
     totalGraphSize,
     avgGraphSize,
-    sizeDetails: firstGraphSize
+    sizeDetails: firstGraphSize,
   };
 }
 
@@ -288,12 +299,12 @@ async function runParallelBenchmark(count: number = 100, withCheckpointer: boole
  * Run multiple iterations and collect statistics
  */
 async function runPerformanceBenchmark(iterations: number = 10) {
-  console.log("=== LangGraph Performance Benchmark ===\n");
+  console.log('=== LangGraph Performance Benchmark ===\n');
   console.log(`Running ${iterations} iterations for each configuration...\n`);
 
   // Test without checkpointer
-  console.log("📊 Benchmark 1: Graph WITHOUT Checkpointer");
-  console.log("─".repeat(60));
+  console.log('📊 Benchmark 1: Graph WITHOUT Checkpointer');
+  console.log('─'.repeat(60));
 
   const withoutCheckpointerTimes: number[] = [];
   let withoutCheckpointerSize: any = null;
@@ -310,23 +321,29 @@ async function runPerformanceBenchmark(iterations: number = 10) {
 
   const withoutCheckpointerStats = calculateStats(withoutCheckpointerTimes);
 
-  console.log("\n⏱️  Compilation Time Statistics:");
+  console.log('\n⏱️  Compilation Time Statistics:');
   console.log(`   Average: ${withoutCheckpointerStats.mean.toFixed(2)} ms`);
   console.log(`   Min:     ${withoutCheckpointerStats.min.toFixed(2)} ms`);
   console.log(`   Max:     ${withoutCheckpointerStats.max.toFixed(2)} ms`);
   console.log(`   Std Dev: ${withoutCheckpointerStats.stdDev.toFixed(2)} ms`);
 
-  console.log("\n📦 Compiled Graph Size:");
-  console.log(`   V8 Serialization: ${withoutCheckpointerSize.v8Size > 0 ? `${withoutCheckpointerSize.v8Size.toLocaleString()} bytes (${(withoutCheckpointerSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`);
-  console.log(`   Deep Calculation: ${withoutCheckpointerSize.deepSize > 0 ? `${withoutCheckpointerSize.deepSize.toLocaleString()} bytes (${(withoutCheckpointerSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`);
-  console.log(`   Estimated Size:   ${withoutCheckpointerSize.estimatedSize.toLocaleString()} bytes (${withoutCheckpointerSize.kb.toFixed(2)} KB)`);
+  console.log('\n📦 Compiled Graph Size:');
+  console.log(
+    `   V8 Serialization: ${withoutCheckpointerSize.v8Size > 0 ? `${withoutCheckpointerSize.v8Size.toLocaleString()} bytes (${(withoutCheckpointerSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`,
+  );
+  console.log(
+    `   Deep Calculation: ${withoutCheckpointerSize.deepSize > 0 ? `${withoutCheckpointerSize.deepSize.toLocaleString()} bytes (${(withoutCheckpointerSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`,
+  );
+  console.log(
+    `   Estimated Size:   ${withoutCheckpointerSize.estimatedSize.toLocaleString()} bytes (${withoutCheckpointerSize.kb.toFixed(2)} KB)`,
+  );
 
-  console.log("\n🔍 Graph Structure:");
+  console.log('\n🔍 Graph Structure:');
   console.log(`   ${JSON.stringify(withoutCheckpointerSize.metadata.structure, null, 2)}`);
 
   // Test with checkpointer
-  console.log("\n\n📊 Benchmark 2: Graph WITH Checkpointer (MemorySaver)");
-  console.log("─".repeat(60));
+  console.log('\n\n📊 Benchmark 2: Graph WITH Checkpointer (MemorySaver)');
+  console.log('─'.repeat(60));
 
   const withCheckpointerTimes: number[] = [];
   let withCheckpointerSize: any = null;
@@ -343,23 +360,29 @@ async function runPerformanceBenchmark(iterations: number = 10) {
 
   const withCheckpointerStats = calculateStats(withCheckpointerTimes);
 
-  console.log("\n⏱️  Compilation Time Statistics:");
+  console.log('\n⏱️  Compilation Time Statistics:');
   console.log(`   Average: ${withCheckpointerStats.mean.toFixed(2)} ms`);
   console.log(`   Min:     ${withCheckpointerStats.min.toFixed(2)} ms`);
   console.log(`   Max:     ${withCheckpointerStats.max.toFixed(2)} ms`);
   console.log(`   Std Dev: ${withCheckpointerStats.stdDev.toFixed(2)} ms`);
 
-  console.log("\n📦 Compiled Graph Size:");
-  console.log(`   V8 Serialization: ${withCheckpointerSize.v8Size > 0 ? `${withCheckpointerSize.v8Size.toLocaleString()} bytes (${(withCheckpointerSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`);
-  console.log(`   Deep Calculation: ${withCheckpointerSize.deepSize > 0 ? `${withCheckpointerSize.deepSize.toLocaleString()} bytes (${(withCheckpointerSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`);
-  console.log(`   Estimated Size:   ${withCheckpointerSize.estimatedSize.toLocaleString()} bytes (${withCheckpointerSize.kb.toFixed(2)} KB)`);
+  console.log('\n📦 Compiled Graph Size:');
+  console.log(
+    `   V8 Serialization: ${withCheckpointerSize.v8Size > 0 ? `${withCheckpointerSize.v8Size.toLocaleString()} bytes (${(withCheckpointerSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`,
+  );
+  console.log(
+    `   Deep Calculation: ${withCheckpointerSize.deepSize > 0 ? `${withCheckpointerSize.deepSize.toLocaleString()} bytes (${(withCheckpointerSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`,
+  );
+  console.log(
+    `   Estimated Size:   ${withCheckpointerSize.estimatedSize.toLocaleString()} bytes (${withCheckpointerSize.kb.toFixed(2)} KB)`,
+  );
 
-  console.log("\n🔍 Graph Structure:");
+  console.log('\n🔍 Graph Structure:');
   console.log(`   ${JSON.stringify(withCheckpointerSize.metadata.structure, null, 2)}`);
 
   // Summary comparison
-  console.log("\n\n📈 Summary Comparison");
-  console.log("─".repeat(60));
+  console.log('\n\n📈 Summary Comparison');
+  console.log('─'.repeat(60));
   console.log(`Without Checkpointer: ${withoutCheckpointerStats.mean.toFixed(2)} ms avg`);
   console.log(`With Checkpointer:    ${withCheckpointerStats.mean.toFixed(2)} ms avg`);
 
@@ -369,10 +392,12 @@ async function runPerformanceBenchmark(iterations: number = 10) {
   if (timeDiff > 0) {
     console.log(`\nCheckpointer adds ~${timeDiff.toFixed(2)} ms (${percentDiff}% slower)`);
   } else {
-    console.log(`\nCheckpointer reduces time by ~${Math.abs(timeDiff).toFixed(2)} ms (${Math.abs(Number(percentDiff))}% faster)`);
+    console.log(
+      `\nCheckpointer reduces time by ~${Math.abs(timeDiff).toFixed(2)} ms (${Math.abs(Number(percentDiff))}% faster)`,
+    );
   }
 
-  console.log("\n✅ Benchmark complete!\n");
+  console.log('\n✅ Benchmark complete!\n');
 }
 
 /**
@@ -381,17 +406,21 @@ async function runPerformanceBenchmark(iterations: number = 10) {
 async function main() {
   try {
     const mode = process.argv[2] || 'sequential';
-    const count = process.argv[3] ? parseInt(process.argv[3]) : (mode === 'parallel' ? 100 : 10);
+    const count = process.argv[3] ? parseInt(process.argv[3]) : mode === 'parallel' ? 100 : 10;
 
     if (mode === 'parallel') {
       if (isNaN(count) || count < 1) {
-        console.error("Error: Count must be a positive number");
-        console.log("Usage: npx ts-node src/examples/langgraph-performance/index.ts parallel [count]");
-        console.log("Example: npx ts-node src/examples/langgraph-performance/index.ts parallel 100");
+        console.error('Error: Count must be a positive number');
+        console.log(
+          'Usage: npx ts-node src/examples/langgraph-performance/index.ts parallel [count]',
+        );
+        console.log(
+          'Example: npx ts-node src/examples/langgraph-performance/index.ts parallel 100',
+        );
         process.exit(1);
       }
 
-      console.log("=== LangGraph Parallel Compilation Benchmark ===");
+      console.log('=== LangGraph Parallel Compilation Benchmark ===');
 
       // Run parallel benchmark without checkpointer
       const withoutResults = await runParallelBenchmark(count, false);
@@ -400,8 +429,8 @@ async function main() {
       const withResults = await runParallelBenchmark(count, true);
 
       // Comparison
-      console.log("\n\n📈 Parallel Benchmark Comparison");
-      console.log("─".repeat(60));
+      console.log('\n\n📈 Parallel Benchmark Comparison');
+      console.log('─'.repeat(60));
       console.log(`Without Checkpointer: ${withoutResults.totalTime.toFixed(2)} ms total`);
       console.log(`                      ${withoutResults.throughput.toFixed(2)} graphs/sec`);
       console.log(`\nWith Checkpointer:    ${withResults.totalTime.toFixed(2)} ms total`);
@@ -413,34 +442,39 @@ async function main() {
       if (timeDiff > 0) {
         console.log(`\nCheckpointer adds ~${timeDiff.toFixed(2)} ms (${percentDiff}% slower)`);
       } else {
-        console.log(`\nCheckpointer reduces time by ~${Math.abs(timeDiff).toFixed(2)} ms (${Math.abs(Number(percentDiff))}% faster)`);
+        console.log(
+          `\nCheckpointer reduces time by ~${Math.abs(timeDiff).toFixed(2)} ms (${Math.abs(Number(percentDiff))}% faster)`,
+        );
       }
 
-      console.log("\n✅ Benchmark complete!\n");
-
+      console.log('\n✅ Benchmark complete!\n');
     } else if (mode === 'sequential' || !isNaN(parseInt(mode))) {
       // Sequential mode (original behavior)
       const iterations = !isNaN(parseInt(mode)) ? parseInt(mode) : count;
 
       if (isNaN(iterations) || iterations < 1) {
-        console.error("Error: Iterations must be a positive number");
-        console.log("Usage: npx ts-node src/examples/langgraph-performance/index.ts [iterations]");
-        console.log("Example: npx ts-node src/examples/langgraph-performance/index.ts 20");
+        console.error('Error: Iterations must be a positive number');
+        console.log('Usage: npx ts-node src/examples/langgraph-performance/index.ts [iterations]');
+        console.log('Example: npx ts-node src/examples/langgraph-performance/index.ts 20');
         process.exit(1);
       }
 
       await runPerformanceBenchmark(iterations);
     } else {
-      console.log("Usage:");
-      console.log("  Sequential: npx ts-node src/examples/langgraph-performance/index.ts [iterations]");
-      console.log("  Parallel:   npx ts-node src/examples/langgraph-performance/index.ts parallel [count]");
-      console.log("\nExamples:");
-      console.log("  npx ts-node src/examples/langgraph-performance/index.ts 20");
-      console.log("  npx ts-node src/examples/langgraph-performance/index.ts parallel 100");
+      console.log('Usage:');
+      console.log(
+        '  Sequential: npx ts-node src/examples/langgraph-performance/index.ts [iterations]',
+      );
+      console.log(
+        '  Parallel:   npx ts-node src/examples/langgraph-performance/index.ts parallel [count]',
+      );
+      console.log('\nExamples:');
+      console.log('  npx ts-node src/examples/langgraph-performance/index.ts 20');
+      console.log('  npx ts-node src/examples/langgraph-performance/index.ts parallel 100');
       process.exit(1);
     }
   } catch (error) {
-    console.error("\n❌ Benchmark failed:", error);
+    console.error('\n❌ Benchmark failed:', error);
     process.exit(1);
   }
 }

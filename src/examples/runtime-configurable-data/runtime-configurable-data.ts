@@ -13,17 +13,17 @@
  * is automatically passed through the entire execution chain.
  */
 
-import { z } from "zod";
-import { tool } from "@langchain/core/tools";
-import { HumanMessage } from "@langchain/core/messages";
-import { MessagesAnnotation, StateGraph } from "@langchain/langgraph";
-import { MemorySaver } from "@langchain/langgraph-checkpoint";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { ChatVertexAI } from "@langchain/google-vertexai";
-import { RunnableConfig } from "@langchain/core/runnables";
-import dotenv from "dotenv";
-import * as readline from "readline";
-import * as crypto from "crypto";
+import { z } from 'zod';
+import { tool } from '@langchain/core/tools';
+import { HumanMessage } from '@langchain/core/messages';
+import { MessagesAnnotation, StateGraph } from '@langchain/langgraph';
+import { MemorySaver } from '@langchain/langgraph-checkpoint';
+import { ToolNode } from '@langchain/langgraph/prebuilt';
+import { ChatVertexAI } from '@langchain/google-vertexai';
+import { RunnableConfig } from '@langchain/core/runnables';
+import dotenv from 'dotenv';
+import * as readline from 'readline';
+import * as crypto from 'crypto';
 
 dotenv.config();
 
@@ -45,17 +45,17 @@ class DatabaseProvider {
     // This represents a real DB connection that can't be serialized
     this.connectionId = crypto.randomBytes(8).toString('hex');
     this.userData = new Map([
-      ["user-123", { name: "Alice Johnson", tier: "premium", credits: 150 }],
-      ["user-456", { name: "Bob Smith", tier: "basic", credits: 50 }],
-      ["user-789", { name: "Carol White", tier: "premium", credits: 200 }]
+      ['user-123', { name: 'Alice Johnson', tier: 'premium', credits: 150 }],
+      ['user-456', { name: 'Bob Smith', tier: 'basic', credits: 50 }],
+      ['user-789', { name: 'Carol White', tier: 'premium', credits: 200 }],
     ]);
     console.log(`🗄️  Database provider initialized with connection: ${this.connectionId}`);
   }
 
   async getUserData(userId: string) {
     // Simulate async DB query
-    await new Promise(resolve => setTimeout(resolve, 100));
-    return this.userData.get(userId) || { name: "Unknown User", tier: "basic", credits: 0 };
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return this.userData.get(userId) || { name: 'Unknown User', tier: 'basic', credits: 0 };
   }
 
   async updateCredits(userId: string, amount: number) {
@@ -73,24 +73,22 @@ class DatabaseProvider {
 
 // External API client with authentication
 class ExternalAPIClient {
-  private : string;
   private requestCount: number = 0;
 
   constructor(apiKey: string) {
-    this.apiKey = apiKey;
     console.log(`🌐 API client initialized with key: ${apiKey.substring(0, 8)}...`);
   }
 
   async checkQuota(userId: string) {
     this.requestCount++;
     // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     // Mock quota check based on user
     const quotas: { [key: string]: { used: number; limit: number } } = {
-      "user-123": { used: 45, limit: 100 },
-      "user-456": { used: 20, limit: 50 },
-      "user-789": { used: 10, limit: 100 }
+      'user-123': { used: 45, limit: 100 },
+      'user-456': { used: 20, limit: 50 },
+      'user-789': { used: 10, limit: 100 },
     };
 
     return quotas[userId] || { used: 0, limit: 50 };
@@ -125,7 +123,7 @@ interface RuntimeDependencies {
  */
 
 const UserInfoSchema = z.object({
-  userId: z.string().describe("The user ID to look up")
+  userId: z.string().describe('The user ID to look up'),
 });
 
 // This tool will access the database provider from config.configurable
@@ -134,7 +132,7 @@ const getUserInfoTool = tool(
     // Access the database provider from config.configurable
     const dbProvider = config?.configurable?.databaseProvider;
     if (!dbProvider) {
-      return "Error: Database provider not available. This indicates the runtime config was not properly passed to the tool.";
+      return 'Error: Database provider not available. This indicates the runtime config was not properly passed to the tool.';
     }
 
     const userData = await dbProvider.getUserData(userId);
@@ -147,14 +145,14 @@ const getUserInfoTool = tool(
 - Retrieved via: ${connectionInfo}`;
   },
   {
-    name: "get_user_info",
-    description: "Get information about a user from the database",
+    name: 'get_user_info',
+    description: 'Get information about a user from the database',
     schema: UserInfoSchema,
-  }
+  },
 );
 
 const QuotaCheckSchema = z.object({
-  userId: z.string().describe("The user ID to check quota for")
+  userId: z.string().describe('The user ID to check quota for'),
 });
 
 // This tool will access the API client from config.configurable
@@ -163,7 +161,7 @@ const checkQuotaTool = tool(
     // Access the API client from config.configurable
     const apiClient = config?.configurable?.apiClient;
     if (!apiClient) {
-      return "Error: API client not available. This indicates the runtime config was not properly passed to the tool.";
+      return 'Error: API client not available. This indicates the runtime config was not properly passed to the tool.';
     }
 
     const quota = await apiClient.checkQuota(userId);
@@ -175,10 +173,10 @@ const checkQuotaTool = tool(
 - API request count this session: ${requestCount}`;
   },
   {
-    name: "check_quota",
-    description: "Check API quota usage for a user",
+    name: 'check_quota',
+    description: 'Check API quota usage for a user',
     schema: QuotaCheckSchema,
-  }
+  },
 );
 
 /**
@@ -188,7 +186,7 @@ const checkQuotaTool = tool(
  */
 async function callModel(
   state: typeof MessagesAnnotation.State,
-  config: RunnableConfig<RuntimeDependencies>
+  config: RunnableConfig<RuntimeDependencies>,
 ) {
   // We can access our providers here if needed
   const dbProvider = config?.configurable?.databaseProvider;
@@ -219,39 +217,42 @@ async function callModel(
  */
 function shouldContinue(
   state: typeof MessagesAnnotation.State,
-  config: RunnableConfig<RuntimeDependencies>
+  config: RunnableConfig<RuntimeDependencies>,
 ) {
   const lastMessage = state.messages[state.messages.length - 1];
 
-  if (lastMessage && "tool_calls" in lastMessage &&
+  if (
+    lastMessage &&
+    'tool_calls' in lastMessage &&
     Array.isArray(lastMessage.tool_calls) &&
-    lastMessage.tool_calls.length > 0) {
+    lastMessage.tool_calls.length > 0
+  ) {
     // Only log routing decisions when actually routing to tools
     if (config?.configurable?.userId) {
       console.log(`\n🔀 Routing to tools for user: ${config.configurable.userId}`);
     }
-    return "tools";
+    return 'tools';
   }
 
-  return "end";
+  return 'end';
 }
 
 /**
  * Create the agent graph
- * 
+ *
  * The standard ToolNode automatically preserves the configurable field
  * when passing config to tools, so no custom implementation needed!
  */
 async function createConfigurableAgent(checkpointer: any) {
   const workflow = new StateGraph(MessagesAnnotation)
-    .addNode("agent", callModel)
-    .addNode("tools", new ToolNode([getUserInfoTool, checkQuotaTool]))
-    .addEdge("__start__", "agent")
-    .addConditionalEdges("agent", shouldContinue, {
-      tools: "tools",
-      end: "__end__",
+    .addNode('agent', callModel)
+    .addNode('tools', new ToolNode([getUserInfoTool, checkQuotaTool]))
+    .addEdge('__start__', 'agent')
+    .addConditionalEdges('agent', shouldContinue, {
+      tools: 'tools',
+      end: '__end__',
     })
-    .addEdge("tools", "agent");
+    .addEdge('tools', 'agent');
 
   // Compile with the provided checkpointer
   return workflow.compile({ checkpointer });
@@ -263,28 +264,28 @@ async function createConfigurableAgent(checkpointer: any) {
 async function runWithConfig(
   agent: any,
   input: HumanMessage,
-  config: RunnableConfig<RuntimeDependencies>
+  config: RunnableConfig<RuntimeDependencies>,
 ) {
-  console.log("\n🤔 Agent thinking...");
+  console.log('\n🤔 Agent thinking...');
 
   // Pass our config with dependencies in configurable
   const eventStream = agent.streamEvents(
     { messages: [input] },
     {
       ...config,
-      version: "v2"
-    }
+      version: 'v2',
+    },
   );
 
-  let fullResponse = "";
+  let fullResponse = '';
   let firstChunk = true;
 
   for await (const event of eventStream) {
-    if (event.event === "on_chat_model_stream") {
+    if (event.event === 'on_chat_model_stream') {
       const chunk = event.data?.chunk;
       if (chunk?.content) {
         if (firstChunk) {
-          console.log("\n🤖 Assistant:");
+          console.log('\n🤖 Assistant:');
           firstChunk = false;
         }
         process.stdout.write(chunk.content);
@@ -292,18 +293,18 @@ async function runWithConfig(
       }
     }
 
-    if (event.event === "on_tool_start") {
+    if (event.event === 'on_tool_start') {
       console.log(`\n\n🛠️  Using tool: ${event.name}`);
     }
 
-    if (event.event === "on_tool_end") {
-      console.log("✅ Tool completed");
-      console.log("\n🤔 Processing result...");
+    if (event.event === 'on_tool_end') {
+      console.log('✅ Tool completed');
+      console.log('\n🤔 Processing result...');
       firstChunk = true;
     }
   }
 
-  console.log("\n");
+  console.log('\n');
   return fullResponse;
 }
 
@@ -311,12 +312,12 @@ async function runWithConfig(
  * Main application demonstrating runtime configuration
  */
 async function main() {
-  console.log("=== Runtime Configurable Data Example ===");
-  console.log("Demonstrating non-serializable dependency injection\n");
+  console.log('=== Runtime Configurable Data Example ===');
+  console.log('Demonstrating non-serializable dependency injection\n');
 
   // Initialize our runtime-only providers
   const databaseProvider = new DatabaseProvider();
-  const apiClient = new ExternalAPIClient("sk-demo-api-key-12345");
+  const apiClient = new ExternalAPIClient('sk-demo-api-key-12345');
 
   console.log("\n✅ Providers initialized (these won't be serialized!)\n");
 
@@ -327,18 +328,18 @@ async function main() {
   const agent = await createConfigurableAgent(checkpointer);
 
   // Simulate different users
-  const users = ["user-123", "user-456", "user-789"];
+  const users = ['user-123', 'user-456', 'user-789'];
   let currentUserIndex = 0;
 
-  console.log("Available commands:");
-  console.log("- Ask about user info or quota");
+  console.log('Available commands:');
+  console.log('- Ask about user info or quota');
   console.log("- Type 'switch' to switch users");
   console.log("- Type 'exit' to quit\n");
 
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: '\n💬 You: '
+    prompt: '\n💬 You: ',
   });
 
   console.log(`🤖 Assistant: Hello! I'm connected to your database and API services.`);
@@ -351,7 +352,7 @@ async function main() {
     const userInput = line.trim();
 
     if (userInput.toLowerCase() === 'exit') {
-      console.log("\n👋 Goodbye!");
+      console.log('\n👋 Goodbye!');
       rl.close();
       process.exit(0);
     }
@@ -374,8 +375,8 @@ async function main() {
           userId: currentUserId,
           // Pass our non-serializable providers in configurable!
           databaseProvider: databaseProvider,
-          apiClient: apiClient
-        }
+          apiClient: apiClient,
+        },
       };
 
       await runWithConfig(agent, input, config);
