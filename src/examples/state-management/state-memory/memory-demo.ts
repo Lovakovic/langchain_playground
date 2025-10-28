@@ -4,7 +4,7 @@
  * This example demonstrates real memory management by forcing garbage collection
  * and showing how LangGraph state patterns can help control memory usage.
  *
- * Run with: node --expose-gc -r ts-node/register src/examples/state-memory-management/memory-demo.ts
+ * Run with: node --expose-gc -r ts-node/register src/examples/state-management/state-memory/memory-demo.ts
  */
 
 import { Annotation, StateGraph } from '@langchain/langgraph';

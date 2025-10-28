@@ -14,7 +14,7 @@ Shows multiple patterns for managing memory in LangGraph:
 - Subgraph state segmentation
 - Batch processing patterns
 
-Run: `npx ts-node src/examples/state-memory-management/index.ts`
+Run: `npx ts-node src/examples/state-management/state-memory/index.ts`
 
 ### 2. `memory-demo.ts` - Real Memory Behavior with Garbage Collection
 
@@ -28,7 +28,7 @@ Demonstrates actual memory behavior with forced garbage collection:
 Run with GC exposed for accurate results:
 
 ```bash
-node --expose-gc -r ts-node/register src/examples/state-memory-management/memory-demo.ts
+node --expose-gc -r ts-node/register src/examples/state-management/state-memory/memory-demo.ts
 ```
 
 ## Key Memory Management Patterns

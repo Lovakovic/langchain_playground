@@ -41,10 +41,10 @@ This example demonstrates extracting tool calls from LLM responses using the
 
 ```bash
 # Run the hierarchical tool tracer
-npx ts-node src/examples/tracing/tool-call-tracing/index.ts
+npx ts-node src/examples/observability/tool-call-tracing/index.ts
 
 # Run the LLM end event tracer
-npx ts-node src/examples/tracing/tool-call-tracing/llm-end-event.ts
+npx ts-node src/examples/observability/tool-call-tracing/llm-end-event.ts
 ```
 
 ## Common Pitfalls

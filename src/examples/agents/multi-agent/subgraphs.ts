@@ -47,7 +47,7 @@ import dotenv from 'dotenv';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 
 dotenv.config();
-import { createReActAgent, type ReActAgentGraph } from '../react_agent/react_agent';
+import { createReActAgent, type ReActAgentGraph } from '../react-agent/react_agent';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
