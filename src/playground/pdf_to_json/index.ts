@@ -1,12 +1,17 @@
+// Define interface for DOMMatrix polyfill parameters
+interface DOMMatrixInit {
+  [key: string]: unknown;
+}
+
 // Node.js polyfills for pdfjs-dist
 global.DOMMatrix = class DOMMatrix {
-  constructor(_init?: any) {
+  constructor(_init?: DOMMatrixInit) {
     // Basic implementation for pdfjs compatibility
   }
-} as any;
+} as typeof DOMMatrix;
 
 if (typeof globalThis === 'undefined') {
-  (global as any).globalThis = global;
+  (global as typeof globalThis & { globalThis: typeof global }).globalThis = global;
 }
 
 import * as pdfjsLib from 'pdfjs-dist';
@@ -31,9 +36,27 @@ interface PDFExtractionResult {
   pages: PageData[];
 }
 
-async function extractTextFromPDF(pdfPath: string): Promise<any> {
+interface PDFParseResult {
+  numpages: number;
+  text: string;
+  info?: {
+    Title?: string;
+    Author?: string;
+    Creator?: string;
+  };
+}
+
+interface PDFImageData {
+  data: Uint8ClampedArray | Uint8Array;
+  width: number;
+  height: number;
+  kind?: string;
+  channels?: number;
+}
+
+async function extractTextFromPDF(pdfPath: string): Promise<PDFParseResult> {
   const dataBuffer = fs.readFileSync(pdfPath);
-  return await pdf(dataBuffer);
+  return pdf(dataBuffer);
 }
 
 async function extractImagesFromPDF(
@@ -70,15 +93,15 @@ async function extractImagesFromPDF(
               const resources = page.commonObjs;
               const pageObjs = page.objs;
 
-              const img = await new Promise((resolve, reject) => {
+              const img = await new Promise<PDFImageData | null>((resolve, reject) => {
                 let resolved = false;
                 const check = () => {
                   if (resources.has(imgName)) {
                     resolved = true;
-                    resolve(resources.get(imgName));
+                    resolve(resources.get(imgName) as PDFImageData | null);
                   } else if (pageObjs.has(imgName)) {
                     resolved = true;
-                    resolve(pageObjs.get(imgName));
+                    resolve(pageObjs.get(imgName) as PDFImageData | null);
                   } else {
                     setTimeout(check, 10);
                   }
@@ -93,15 +116,15 @@ async function extractImagesFromPDF(
                 }, 2000);
               });
 
-              if (img && (img as any).data) {
+              if (img && img.data) {
                 imageIndex++;
                 const fileName = `page_${pageNum}_image_${imageIndex}.png`;
                 const filePath = path.join(outputDir, fileName);
 
-                const imgData = img as any;
+                const imgData = img;
                 if (imgData.width && imgData.height && imgData.data) {
                   try {
-                    let imageBuffer = Buffer.from(imgData.data);
+                    const imageBuffer = Buffer.from(imgData.data);
 
                     if (imgData.kind === 'JPEG_IMAGE' || imgData.kind === 'PNG_IMAGE') {
                       fs.writeFileSync(filePath, imageBuffer);
@@ -110,9 +133,13 @@ async function extractImagesFromPDF(
                         imgData.channels || imageBuffer.length / (imgData.width * imgData.height);
                       let actualChannels = Math.floor(expectedChannels);
 
-                      if (actualChannels < 1) actualChannels = 1;
-                      else if (actualChannels === 2) actualChannels = 3;
-                      else if (actualChannels > 4) actualChannels = 4;
+                      if (actualChannels < 1) {
+                        actualChannels = 1;
+                      } else if (actualChannels === 2) {
+                        actualChannels = 3;
+                      } else if (actualChannels > 4) {
+                        actualChannels = 4;
+                      }
 
                       let bufferForSharp = imageBuffer;
                       let sharpChannels = actualChannels as 1 | 3 | 4;
@@ -297,7 +324,7 @@ async function pdfToJson(pdfPath: string): Promise<void> {
         title: pdfData.info?.Title,
         author: pdfData.info?.Author,
         creator: pdfData.info?.Creator,
-        totalPages: totalPages,
+        totalPages,
       },
       pages,
     };

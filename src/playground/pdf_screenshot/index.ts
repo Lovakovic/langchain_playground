@@ -3,6 +3,20 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 
+/**
+ * Options for pdf2pic conversion
+ */
+interface Pdf2PicOptions {
+  density: number;
+  saveFilename: string;
+  savePath: string;
+  format: 'png' | 'jpeg';
+  width: number;
+  height: number;
+  preserveAspectRatio: boolean;
+  quality?: number;
+}
+
 const outputDir = path.resolve(__dirname, 'output');
 
 // Create output directory if it doesn't exist
@@ -15,7 +29,7 @@ function getPdfDimensions(pdfPath: string): { width: number; height: number } | 
   try {
     const output = execSync(`pdfinfo "${pdfPath}"`, { encoding: 'utf8' });
     const sizeMatch = output.match(/Page size:\s+(\d+(?:\.\d+)?)\s+x\s+(\d+(?:\.\d+)?)\s+pts/);
-    if (sizeMatch && sizeMatch[1] && sizeMatch[2]) {
+    if (sizeMatch?.[1] && sizeMatch[2]) {
       return {
         width: parseFloat(sizeMatch[1]),
         height: parseFloat(sizeMatch[2]),
@@ -54,7 +68,7 @@ async function pdfToImages(pdfPath: string, usePng: boolean = false) {
     // Calculate adaptive DPI based on PDF size
     const adaptiveDPI = calculateAdaptiveDPI(pdfPath);
 
-    const options: any = {
+    const options: Pdf2PicOptions = {
       // density: DPI (dots per inch) for rendering PDF pages
       // Now adaptive based on PDF dimensions to maintain good OCR quality
       // while avoiding excessively large files for oversized PDFs

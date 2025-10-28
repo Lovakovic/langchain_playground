@@ -9,10 +9,11 @@ import { z } from 'zod';
 import { tool } from '@langchain/core/tools';
 import { HumanMessage } from '@langchain/core/messages';
 import { MessagesAnnotation, StateGraph, Annotation } from '@langchain/langgraph';
-import { BaseCheckpointSaver, MemorySaver } from '@langchain/langgraph-checkpoint';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
+import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { ChatVertexAI } from '@langchain/google-vertexai';
-import { RunnableConfig } from '@langchain/core/runnables';
+import type { RunnableConfig } from '@langchain/core/runnables';
 import * as dotenv from 'dotenv';
 import * as readline from 'readline';
 
@@ -55,7 +56,9 @@ class ErrorManager {
   }
 
   getSummary(): string {
-    if (!this.hasErrors()) return '✅ No validation errors';
+    if (!this.hasErrors()) {
+      return '✅ No validation errors';
+    }
 
     const byCategory = this.getErrors().reduce(
       (acc, error) => {
@@ -91,6 +94,7 @@ const ConfigState = Annotation.Root({
 interface RuntimeDeps {
   errorManager?: ErrorManager;
   thread_id?: string;
+  [key: string]: unknown;
 }
 
 // Tools
@@ -101,7 +105,9 @@ const createConfigSchema = z.object({
 const createConfigTool = tool(
   async ({ requirements }, config?: RunnableConfig<RuntimeDeps>) => {
     const errorManager = config?.configurable?.errorManager;
-    if (!errorManager) throw new Error('ErrorManager not available');
+    if (!errorManager) {
+      throw new Error('ErrorManager not available');
+    }
 
     // Reset state for new session
     configState.securityFixed = false;
@@ -160,7 +166,9 @@ const configState = {
 const updateConfigTool = tool(
   async ({ updates }, config?: RunnableConfig<RuntimeDeps>) => {
     const errorManager = config?.configurable?.errorManager;
-    if (!errorManager) throw new Error('ErrorManager not available');
+    if (!errorManager) {
+      throw new Error('ErrorManager not available');
+    }
 
     // Track what was fixed and clear those errors
     if (updates.toLowerCase().includes('ssl') || updates.toLowerCase().includes('security')) {
@@ -187,9 +195,15 @@ const updateConfigTool = tool(
     }
 
     const fixedCategories = [];
-    if (updates.toLowerCase().includes('security')) fixedCategories.push('security');
-    if (updates.toLowerCase().includes('performance')) fixedCategories.push('performance');
-    if (updates.toLowerCase().includes('compliance')) fixedCategories.push('compliance');
+    if (updates.toLowerCase().includes('security')) {
+      fixedCategories.push('security');
+    }
+    if (updates.toLowerCase().includes('performance')) {
+      fixedCategories.push('performance');
+    }
+    if (updates.toLowerCase().includes('compliance')) {
+      fixedCategories.push('compliance');
+    }
 
     return `✅ Applied updates: ${updates}\n\nConfiguration updated successfully. Fixed: ${fixedCategories.join(', ') || 'general improvements'}`;
   },
@@ -205,7 +219,9 @@ const updateConfigTool = tool(
 const securityValidateTool = tool(
   async ({}, config?: RunnableConfig<RuntimeDeps>) => {
     const errorManager = config?.configurable?.errorManager;
-    if (!errorManager) throw new Error('ErrorManager not available');
+    if (!errorManager) {
+      throw new Error('ErrorManager not available');
+    }
 
     // Only add errors if security hasn't been fixed yet
     if (!configState.securityFixed) {
@@ -255,7 +271,9 @@ const securityValidateTool = tool(
 const performanceValidateTool = tool(
   async ({}, config?: RunnableConfig<RuntimeDeps>) => {
     const errorManager = config?.configurable?.errorManager;
-    if (!errorManager) throw new Error('ErrorManager not available');
+    if (!errorManager) {
+      throw new Error('ErrorManager not available');
+    }
 
     if (!configState.performanceFixed) {
       if (!errorManager.getErrors().find((e) => e.id === 'perf-001')) {
@@ -294,7 +312,9 @@ const performanceValidateTool = tool(
 const complianceValidateTool = tool(
   async ({}, config?: RunnableConfig<RuntimeDeps>) => {
     const errorManager = config?.configurable?.errorManager;
-    if (!errorManager) throw new Error('ErrorManager not available');
+    if (!errorManager) {
+      throw new Error('ErrorManager not available');
+    }
 
     if (!configState.complianceFixed) {
       if (!errorManager.getErrors().find((e) => e.id === 'comp-001')) {
@@ -333,7 +353,9 @@ const complianceValidateTool = tool(
 const finalSummaryTool = tool(
   async ({}, config?: RunnableConfig<RuntimeDeps>) => {
     const errorManager = config?.configurable?.errorManager;
-    if (!errorManager) throw new Error('ErrorManager not available');
+    if (!errorManager) {
+      throw new Error('ErrorManager not available');
+    }
 
     return `🎉 **Configuration Complete!**
 
@@ -425,7 +447,9 @@ async function validateAndFix(
   config: RunnableConfig<RuntimeDeps>,
 ) {
   const errorManager = config?.configurable?.errorManager;
-  if (!errorManager) throw new Error('ErrorManager not available');
+  if (!errorManager) {
+    throw new Error('ErrorManager not available');
+  }
 
   let summary = `\n🔍 Validation Round ${state.iterationCount}\n`;
   summary += `Current status: ${errorManager.getSummary()}\n`;
@@ -475,7 +499,7 @@ async function createCorrectionLoopAgent(checkpointer: BaseCheckpointSaver) {
 
 // Execution
 async function runCorrectionLoop(
-  agent: any,
+  agent: Awaited<ReturnType<typeof createCorrectionLoopAgent>>,
   input: HumanMessage,
   config: RunnableConfig<RuntimeDeps>,
 ) {
@@ -549,7 +573,7 @@ async function main() {
       const config: RunnableConfig<RuntimeDeps> = {
         configurable: {
           thread_id: `session-${Date.now()}`,
-          errorManager: errorManager,
+          errorManager,
         },
       };
 

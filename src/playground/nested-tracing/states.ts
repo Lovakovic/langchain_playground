@@ -1,5 +1,5 @@
 import { Annotation } from '@langchain/langgraph';
-import { MockMenuItem, MockFileMetadata } from './types';
+import type { MockMenuItem, MockFileMetadata } from './types';
 
 /**
  * State Management for Nested Graph Architecture
@@ -12,6 +12,22 @@ import { MockMenuItem, MockFileMetadata } from './types';
  * The NestedTracer captures events from nodes that read and modify this state,
  * providing visibility into the data flow patterns.
  */
+
+export interface FinalMenuStructure {
+  sections: Array<{
+    name: string;
+    items: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      price?: number;
+      category?: string;
+      allergens?: string[];
+      translatedName?: string;
+      translatedDescription?: string;
+    }>;
+  }>;
+}
 
 /**
  * Master Graph State - Top-level state for the entire processing pipeline
@@ -68,7 +84,7 @@ export const MasterGraphState = Annotation.Root({
   // === FINAL OUTPUTS ===
   // These channels contain the final assembled results
 
-  finalMenuStructure: Annotation<any>({
+  finalMenuStructure: Annotation<FinalMenuStructure | null>({
     reducer: (x, y) => y ?? x,
     // The complete menu structure assembled from all enrichment results
   }),

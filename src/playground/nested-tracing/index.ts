@@ -1,13 +1,16 @@
 import dotenv from 'dotenv';
 import { EventEmitter } from 'events';
 import { createMasterGraph } from './master-graph';
+import type { CapturedEvent } from './nested-tracer';
 import { NestedTracer } from './nested-tracer';
-import { MockFileMetadata, ProcessingPhase } from './types';
-import { RunnableConfig } from '@langchain/core/runnables';
+import type { MockFileMetadata } from './types';
+import { ProcessingPhase } from './types';
+import type { RunnableConfig } from '@langchain/core/runnables';
+import type { MasterGraphState } from './states';
 
 dotenv.config();
 
-async function runNestedTracingDemo() {
+async function runNestedTracingDemo(): Promise<typeof MasterGraphState.State> {
   console.log('🎯 Starting Nested Tracing Demo');
   console.log('='.repeat(50));
 
@@ -19,7 +22,7 @@ async function runNestedTracingDemo() {
   const tracer = new NestedTracer(eventEmitter, menuId);
 
   // Set up real-time event logging
-  eventEmitter.on('processingEvent', (_menuId: string, event: any) => {
+  eventEmitter.on('processingEvent', (_menuId: string, event: CapturedEvent) => {
     const levelIndent = '  '.repeat(event.graphLevel || 0);
 
     console.log(`${levelIndent}[${event.type}] ${event.phase}: ${event.message}`);
@@ -40,11 +43,15 @@ async function runNestedTracingDemo() {
       console.log(`${levelIndent}  📊 Path: ${event.executionPath?.join(' -> ')}`);
 
       // Show interesting custom event data
-      if (event.metadata?.eventData) {
-        const data = event.metadata.eventData;
-        const keys = Object.keys(data).slice(0, 3); // Show first 3 keys
-        if (keys.length > 0) {
-          console.log(`${levelIndent}  📋 Data: ${keys.map((k) => `${k}=${data[k]}`).join(', ')}`);
+      if (event.metadata?.['eventData']) {
+        const data = event.metadata['eventData'];
+        if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+          const keys = Object.keys(data).slice(0, 3); // Show first 3 keys
+          if (keys.length > 0) {
+            console.log(
+              `${levelIndent}  📋 Data: ${keys.map((k) => `${k}=${(data as Record<string, unknown>)[k]}`).join(', ')}`,
+            );
+          }
         }
       }
     }
@@ -121,7 +128,7 @@ Beer contains: Gluten
     console.log(`   Completeness Score: ${result.completenessScore || 0}%`);
 
     // Analyze captured events
-    console.log('\n' + '='.repeat(60));
+    console.log(`\n${'='.repeat(60)}`);
     console.log('📈 TRACING ANALYSIS');
     console.log('='.repeat(60));
 
@@ -153,8 +160,13 @@ Beer contains: Gluten
       // Group custom events by type for analysis
       const eventsByType = customEvents.reduce(
         (acc, event) => {
-          const eventName = event.metadata?.['eventName'] || 'unknown';
-          if (!acc[eventName]) acc[eventName] = [];
+          const eventName =
+            typeof event.metadata?.['eventName'] === 'string'
+              ? event.metadata['eventName']
+              : 'unknown';
+          if (!acc[eventName]) {
+            acc[eventName] = [];
+          }
           acc[eventName].push(event);
           return acc;
         },
@@ -185,16 +197,20 @@ Beer contains: Gluten
       // Show timeline of key business events
       console.log('\n⏱️  BUSINESS EVENT TIMELINE:');
       const businessEvents = customEvents
-        .filter((event) =>
-          [
-            'analysis_started',
-            'analysis_completed',
-            'enrichment_started',
-            'enrichment_completed',
-            'subgraph_entered',
-            'subgraph_exited',
-          ].includes(event.metadata?.['eventName'] || ''),
-        )
+        .filter((event) => {
+          const eventName = event.metadata?.['eventName'];
+          return (
+            typeof eventName === 'string' &&
+            [
+              'analysis_started',
+              'analysis_completed',
+              'enrichment_started',
+              'enrichment_completed',
+              'subgraph_entered',
+              'subgraph_exited',
+            ].includes(eventName)
+          );
+        })
         .sort((a, b) => a.timestamp - b.timestamp);
 
       const firstEventTimestamp = businessEvents[0]?.timestamp ?? 0;
@@ -216,15 +232,30 @@ Beer contains: Gluten
         performanceEvents.forEach((event) => {
           const metrics = event.metadata?.['performanceMetrics'];
           const duration = event.metadata?.['duration'];
-          const node = event.metadata?.['currentNode'] || event.nodeName;
+          const node =
+            typeof event.metadata?.['currentNode'] === 'string'
+              ? event.metadata['currentNode']
+              : event.nodeName;
 
-          if (metrics) {
+          if (
+            metrics &&
+            typeof metrics === 'object' &&
+            metrics !== null &&
+            'totalDuration' in metrics &&
+            'llmDuration' in metrics &&
+            'processingRate' in metrics &&
+            'averageTimePerItem' in metrics
+          ) {
             console.log(`   ${node}:`);
-            console.log(`     ├─ Total duration: ${metrics.totalDuration}ms`);
-            console.log(`     ├─ LLM duration: ${metrics.llmDuration}ms`);
-            console.log(`     ├─ Processing rate: ${metrics.processingRate.toFixed(2)} items/sec`);
-            console.log(`     └─ Avg time per item: ${metrics.averageTimePerItem.toFixed(2)}ms`);
-          } else if (duration) {
+            console.log(`     ├─ Total duration: ${metrics['totalDuration']}ms`);
+            console.log(`     ├─ LLM duration: ${metrics['llmDuration']}ms`);
+            console.log(
+              `     ├─ Processing rate: ${(metrics['processingRate'] as number).toFixed(2)} items/sec`,
+            );
+            console.log(
+              `     └─ Avg time per item: ${(metrics['averageTimePerItem'] as number).toFixed(2)}ms`,
+            );
+          } else if (typeof duration === 'number') {
             console.log(`   ${node}: ${duration}ms`);
           }
         });

@@ -22,10 +22,17 @@ import { z } from 'zod';
 
 dotenv.config();
 
+// Define interface for the tool's input parameters
+interface CreateDocumentInput {
+  title: string;
+  content: string;
+  metadata?: string;
+}
+
 // Define a tool with a default parameter
 // Notice: The 'metadata' parameter has a default value of "default-metadata"
 const createDocument = tool(
-  async ({ title, content, metadata }: { title: string; content: string; metadata?: string }) => {
+  async ({ title, content, metadata }: CreateDocumentInput) => {
     // When the tool is invoked, the default value IS applied
     // This is handled by LangChain's tool.invoke() method
     console.log('Tool called with args:');
@@ -85,11 +92,11 @@ const main = async () => {
         // When we invoke the tool, LangChain applies the default value
         // The tool function receives metadata: "default-metadata" even though
         // it wasn't in toolCall.args
-        const toolResult = await createDocument.invoke(toolCall!.args as any);
+        const toolResult = await createDocument.invoke(toolCall.args as CreateDocumentInput);
 
         const toolMessage = new ToolMessage({
           content: toolResult.toString(),
-          tool_call_id: toolCall!.id ?? 'invalid_tool_call_id',
+          tool_call_id: toolCall.id ?? 'invalid_tool_call_id',
         });
 
         // Second call to the model, including the tool result
@@ -102,7 +109,7 @@ const main = async () => {
         console.log('\nFinal model response:');
         console.log(finalResponse.content);
       } catch (error) {
-        console.error(`Error executing tool ${toolCall!.name}:`, error);
+        console.error(`Error executing tool ${toolCall.name}:`, error);
       }
     }
   } else {

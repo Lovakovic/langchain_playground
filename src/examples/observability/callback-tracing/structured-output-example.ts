@@ -41,9 +41,9 @@ import { z } from 'zod';
 import { StateGraph, START, END } from '@langchain/langgraph';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
-import { Serialized } from '@langchain/core/load/serializable';
-import { LLMResult } from '@langchain/core/outputs';
-import { RunnableConfig } from '@langchain/core/runnables';
+import type { Serialized } from '@langchain/core/load/serializable';
+import type { LLMResult } from '@langchain/core/outputs';
+import type { RunnableConfig } from '@langchain/core/runnables';
 import * as util from 'util';
 import dotenv from 'dotenv';
 
@@ -99,9 +99,9 @@ class StructuredOutputCallbackHandler extends BaseCallbackHandler {
     prompts: string[],
     runId: string,
     parentRunId?: string,
-    _extraParams?: Record<string, any>,
+    _extraParams?: Record<string, unknown>,
     tags?: string[],
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     console.log('\n🔷 [LLM START] Structured Output Model Invocation');
     console.log('├─ Model:', llm.id?.join('/') || 'unknown');
@@ -113,7 +113,7 @@ class StructuredOutputCallbackHandler extends BaseCallbackHandler {
       console.log('├─ Structured Output Schema:', metadata['structuredOutput']);
     }
 
-    console.log('├─ Prompt Preview:', prompts[0]?.substring(0, 100) + '...');
+    console.log('├─ Prompt Preview:', `${prompts[0]?.substring(0, 100)}...`);
     console.log('└─ Tags:', tags?.join(', ') || 'none');
   }
 
@@ -186,7 +186,7 @@ class StructuredOutputCallbackHandler extends BaseCallbackHandler {
 
   override async handleChainStart(
     chain: Serialized,
-    inputs: Record<string, any>,
+    inputs: Record<string, unknown>,
     runId: string,
   ): Promise<void> {
     console.log('\n🔗 [CHAIN START]', chain.id?.join('/') || 'unknown');
@@ -194,7 +194,7 @@ class StructuredOutputCallbackHandler extends BaseCallbackHandler {
     console.log('└─ Input Keys:', Object.keys(inputs).join(', '));
   }
 
-  override async handleChainEnd(outputs: Record<string, any>, runId: string): Promise<void> {
+  override async handleChainEnd(outputs: Record<string, unknown>, runId: string): Promise<void> {
     console.log('\n✅ [CHAIN END]');
     console.log('├─ Run ID:', runId);
     console.log('└─ Output Keys:', Object.keys(outputs).join(', '));
@@ -306,7 +306,7 @@ Provide confidence scores and reasoning for each categorization.`;
 
   const updatedItems = state.items.map((item) => ({
     ...item,
-    analysis: analysisMap.get(item.id) as z.infer<typeof AnalysisResultSchema> | undefined,
+    analysis: analysisMap.get(item.id),
   }));
 
   const analysisTime = Date.now() - startTime;

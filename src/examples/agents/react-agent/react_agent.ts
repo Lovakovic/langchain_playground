@@ -18,14 +18,10 @@
 
 import { z } from 'zod';
 import { tool } from '@langchain/core/tools';
-import { HumanMessage, BaseMessage, BaseMessageLike } from '@langchain/core/messages';
-import {
-  MemorySaver,
-  MessagesAnnotation,
-  StateGraph,
-  CompiledStateGraph,
-  StateDefinition,
-} from '@langchain/langgraph';
+import type { BaseMessage, BaseMessageLike } from '@langchain/core/messages';
+import { HumanMessage } from '@langchain/core/messages';
+import type { CompiledStateGraph, StateDefinition } from '@langchain/langgraph';
+import { MemorySaver, MessagesAnnotation, StateGraph } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import dotenv from 'dotenv';
 import { ChatVertexAI } from '@langchain/google-vertexai';
@@ -35,7 +31,7 @@ import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 
 /**
  * Tool Schema Definition
@@ -274,7 +270,7 @@ async function runWithStreaming(agent: ReActAgentGraph, input: HumanMessage, ses
 
     // Handle tool execution start
     if (event.event === 'on_tool_start' && event.name === 'fetch_cat_picture') {
-      console.log('\n\n🛠️  Executing tool: ' + event.name);
+      console.log(`\n\n🛠️  Executing tool: ${event.name}`);
 
       // Start spinner animation for visual feedback
       let i = 0;
@@ -290,7 +286,7 @@ async function runWithStreaming(agent: ReActAgentGraph, input: HumanMessage, ses
       // Clear spinner
       clearInterval(spinnerInterval);
       spinnerInterval = null;
-      process.stdout.write('\r' + ' '.repeat(80) + '\r');
+      process.stdout.write(`\r${' '.repeat(80)}\r`);
 
       console.log('✅ Tool execution completed');
       console.log('\n🤔 Agent thinking...');

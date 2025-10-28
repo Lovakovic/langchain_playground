@@ -38,12 +38,14 @@
 import { z } from 'zod';
 import { StateGraph, Annotation, MessagesAnnotation } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
-import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { tool } from '@langchain/core/tools';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseTracer, Run } from '@langchain/core/tracers/base';
-import { RunnableConfig } from '@langchain/core/runnables';
+import type { Run } from '@langchain/core/tracers/base';
+import { BaseTracer } from '@langchain/core/tracers/base';
+import type { RunnableConfig } from '@langchain/core/runnables';
 import dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -52,6 +54,20 @@ dotenv.config();
 
 // ============================================================================
 // SECTION 1: ENHANCED METRICS TRACER
+// ============================================================================
+
+/**
+ * Type for LangChain serialized object with model information
+ */
+interface SerializedWithModel {
+  kwargs?: {
+    model?: string;
+  };
+  name?: string;
+}
+
+// ============================================================================
+// SECTION 1: ENHANCED METRICS TRACER (CONTINUED)
 // ============================================================================
 
 /**
@@ -205,7 +221,7 @@ export class EnhancedMetricsTracer extends BaseTracer {
     let modelName: string | undefined;
 
     // Try serialized.kwargs.model (most reliable for most providers)
-    const serialized = run.serialized as any;
+    const serialized = run.serialized as SerializedWithModel;
     if (serialized?.kwargs?.model) {
       modelName = serialized.kwargs.model;
     }
@@ -285,7 +301,9 @@ export class EnhancedMetricsTracer extends BaseTracer {
     }
 
     // Skip if no token usage found
-    if (totalTokens === 0) return;
+    if (totalTokens === 0) {
+      return;
+    }
 
     // ===== Step 3: Update Global Totals =====
     this.totalInputTokens += inputTokens;
@@ -355,14 +373,24 @@ export class EnhancedMetricsTracer extends BaseTracer {
    * Used when model name isn't found in the expected locations
    */
   private extractModelName(run: Run): string {
-    const serialized = run.serialized as any;
-    if (serialized?.kwargs?.model) return serialized.kwargs.model;
-    if (serialized?.name) return serialized.name;
+    const serialized = run.serialized as SerializedWithModel;
+    if (serialized?.kwargs?.model) {
+      return serialized.kwargs.model;
+    }
+    if (serialized?.name) {
+      return serialized.name;
+    }
 
     // Last resort - check run name for provider hints
-    if (run.name.includes('ChatVertexAI')) return 'Vertex AI (Unknown Model)';
-    if (run.name.includes('ChatOpenAI')) return 'OpenAI (Unknown Model)';
-    if (run.name.includes('ChatAnthropic')) return 'Anthropic (Unknown Model)';
+    if (run.name.includes('ChatVertexAI')) {
+      return 'Vertex AI (Unknown Model)';
+    }
+    if (run.name.includes('ChatOpenAI')) {
+      return 'OpenAI (Unknown Model)';
+    }
+    if (run.name.includes('ChatAnthropic')) {
+      return 'Anthropic (Unknown Model)';
+    }
 
     return 'Unknown';
   }
@@ -675,13 +703,13 @@ async function research_node(state: typeof GraphState.State, config?: RunnableCo
   let findings = '';
   for (const msg of result.messages) {
     if (msg.content && typeof msg.content === 'string') {
-      findings += msg.content + '\n';
+      findings += `${msg.content}\n`;
     }
   }
 
   return {
     research_results: findings,
-    messages: [new AIMessage('Research completed. ' + findings)],
+    messages: [new AIMessage(`Research completed. ${findings}`)],
   };
 }
 

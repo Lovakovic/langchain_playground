@@ -62,11 +62,11 @@ const main = async () => {
     const toolCall = firstResponse.tool_calls[0];
     if (toolCall && toolCall.name === 'multiply') {
       try {
-        const toolResult = await multiply.invoke(toolCall!.args as { a: number; b: number });
+        const toolResult = await multiply.invoke(toolCall.args as { a: number; b: number });
 
         const toolMessage = new ToolMessage({
           content: toolResult.toString(),
-          tool_call_id: toolCall!.id ?? 'invalid_tool_call_id',
+          tool_call_id: toolCall.id ?? 'invalid_tool_call_id',
         });
 
         // Second call to the model, including the tool result
@@ -79,7 +79,7 @@ const main = async () => {
         console.log('\nFinal model response after tool execution:');
         console.log(finalResponse.content);
       } catch (error) {
-        console.error(`Error executing tool ${toolCall!.name}:`, error);
+        console.error(`Error executing tool ${toolCall.name}:`, error);
         console.log('\nFinal result: Error during tool execution.');
       }
     }

@@ -17,10 +17,11 @@ import { z } from 'zod';
 import { tool } from '@langchain/core/tools';
 import { HumanMessage } from '@langchain/core/messages';
 import { MessagesAnnotation, StateGraph } from '@langchain/langgraph';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { ChatVertexAI } from '@langchain/google-vertexai';
-import { RunnableConfig } from '@langchain/core/runnables';
+import type { RunnableConfig } from '@langchain/core/runnables';
 import dotenv from 'dotenv';
 import * as readline from 'readline';
 import * as crypto from 'crypto';
@@ -36,10 +37,17 @@ dotenv.config();
  * - Contain credentials or connections that shouldn't be persisted
  */
 
+// User data interface for type safety
+interface UserData {
+  name: string;
+  tier: string;
+  credits: number;
+}
+
 // Simulated database provider with connection state
 class DatabaseProvider {
   private connectionId: string;
-  private userData: Map<string, any>;
+  private userData: Map<string, UserData>;
 
   constructor() {
     // This represents a real DB connection that can't be serialized
@@ -113,8 +121,8 @@ interface RuntimeDependencies {
   thread_id?: string;
   checkpoint_id?: string;
 
-  // Allow other fields
-  [key: string]: any;
+  // Allow additional configurable fields
+  [key: string]: unknown;
 }
 
 /**
@@ -243,7 +251,7 @@ function shouldContinue(
  * The standard ToolNode automatically preserves the configurable field
  * when passing config to tools, so no custom implementation needed!
  */
-async function createConfigurableAgent(checkpointer: any) {
+async function createConfigurableAgent(checkpointer: BaseCheckpointSaver) {
   const workflow = new StateGraph(MessagesAnnotation)
     .addNode('agent', callModel)
     .addNode('tools', new ToolNode([getUserInfoTool, checkQuotaTool]))
@@ -262,10 +270,10 @@ async function createConfigurableAgent(checkpointer: any) {
  * Stream execution with runtime config
  */
 async function runWithConfig(
-  agent: any,
+  agent: Awaited<ReturnType<typeof createConfigurableAgent>>,
   input: HumanMessage,
   config: RunnableConfig<RuntimeDependencies>,
-) {
+): Promise<string> {
   console.log('\n🤔 Agent thinking...');
 
   // Pass our config with dependencies in configurable
@@ -374,8 +382,8 @@ async function main() {
           thread_id: `session-${currentUserId}`, // Stable thread per user
           userId: currentUserId,
           // Pass our non-serializable providers in configurable!
-          databaseProvider: databaseProvider,
-          apiClient: apiClient,
+          databaseProvider,
+          apiClient,
         },
       };
 

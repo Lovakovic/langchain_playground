@@ -4,7 +4,7 @@ LangChain/LangGraph examples playground. High-quality, type-safe reference imple
 
 ## Targets
 
-- `yarn quality` - Format, compile, lint (run before commit)
+- `yarn quality` - Format, compile, lint (**MANDATORY after ANY code change**)
 - `yarn run-example <path>` - Compile and run specific example
 - `yarn build` - Compile TypeScript
 - `yarn format` - Format code with Prettier
@@ -18,7 +18,8 @@ LangChain/LangGraph examples playground. High-quality, type-safe reference imple
 - **NO type re-exports** - direct imports only (`import { X } from './source'`)
 - **NO legacy code** - delete old implementations completely when replacing
 - **NO direct process.env** - all env vars through ConfigService
-- No `any` types - use proper typing or `unknown` with guards
+- **NO `any` types** - forbidden by tsconfig (`noImplicitAny`, `@typescript-eslint/no-explicit-any`)
+- **ALWAYS run `yarn quality` after creating/modifying examples** - zero errors, zero warnings
 - Zero tolerance: zero errors, zero warnings
 
 ## Example Structure
@@ -30,3 +31,11 @@ Each example in `src/examples/`:
 - Full type definitions for all data structures
 
 These are **reference implementations** - quality and type safety are mandatory.
+
+## AGENTS.md Rules
+
+**This file must be concise and focused.** When editing:
+- Keep it brief - no verbose explanations
+- Bullet points only
+- Delete redundant content
+- Focus on critical rules and commands

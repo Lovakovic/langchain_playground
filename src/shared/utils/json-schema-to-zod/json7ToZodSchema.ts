@@ -1,5 +1,11 @@
-import { z, ZodObject, ZodTypeAny } from 'zod';
-import { JSONSchemaDraft7, JSONSchemaDraft7Property, ZodPropType, ZodSchemaProps } from './types';
+import type { ZodObject, ZodTypeAny } from 'zod';
+import { z } from 'zod';
+import type {
+  JSONSchemaDraft7,
+  JSONSchemaDraft7Property,
+  ZodPropType,
+  ZodSchemaProps,
+} from './types';
 
 /**
  * Converts a JSON Schema Draft 7 or a string representation of it into a Zod schema.
@@ -56,7 +62,9 @@ const convertPropertiesToZod = (
 
   for (const key in properties) {
     const prop = properties[key];
-    if (!prop) continue;
+    if (!prop) {
+      continue;
+    }
 
     let zodProp: ZodTypeAny = convertTypeToZod(prop);
 

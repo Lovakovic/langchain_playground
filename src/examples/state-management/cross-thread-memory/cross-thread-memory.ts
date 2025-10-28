@@ -35,13 +35,8 @@
 import { z } from 'zod';
 import { tool } from '@langchain/core/tools';
 import { HumanMessage } from '@langchain/core/messages';
-import {
-  InMemoryStore,
-  LangGraphRunnableConfig,
-  MemorySaver,
-  MessagesAnnotation,
-  StateGraph,
-} from '@langchain/langgraph';
+import type { LangGraphRunnableConfig } from '@langchain/langgraph';
+import { InMemoryStore, MemorySaver, MessagesAnnotation, StateGraph } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import dotenv from 'dotenv';
 import { ChatVertexAI } from '@langchain/google-vertexai';
@@ -61,7 +56,7 @@ interface UserProfile {
   name?: string;
   occupation?: string;
   notes: string[];
-  preferences: Record<string, any>;
+  preferences: Record<string, string>;
   lastUpdated: string;
 }
 
@@ -179,8 +174,12 @@ async function callModelWithMemory(
 
       // Add personalized context
       systemPrompt += "\n\nHere's what you know about the user:";
-      if (profile.name) systemPrompt += `\n- Their name is ${profile.name}`;
-      if (profile.occupation) systemPrompt += `\n- They work as ${profile.occupation}`;
+      if (profile.name) {
+        systemPrompt += `\n- Their name is ${profile.name}`;
+      }
+      if (profile.occupation) {
+        systemPrompt += `\n- They work as ${profile.occupation}`;
+      }
       if (profile.notes.length > 0) {
         systemPrompt += '\n- Additional information:';
         profile.notes.forEach((note) => {
@@ -288,7 +287,7 @@ export async function createMemoryAgent(store: InMemoryStore) {
   // Compile with both checkpointer (for conversation history) and store (for cross-thread memory)
   return workflow.compile({
     checkpointer: new MemorySaver(),
-    store: store,
+    store,
   });
 }
 
@@ -308,7 +307,7 @@ export async function createMemoryAgent(store: InMemoryStore) {
  * providing visual feedback without interrupting the conversation flow.
  */
 async function runWithStreaming(
-  agent: any,
+  agent: Awaited<ReturnType<typeof createMemoryAgent>>,
   input: HumanMessage,
   config: { configurable: { thread_id: string; userId: string } },
 ) {
@@ -484,8 +483,12 @@ async function main() {
       } else {
         const profile = profileData.value as UserProfile;
         console.log('\n🧠 Stored Memory:');
-        if (profile.name) console.log(`  • Name: ${profile.name}`);
-        if (profile.occupation) console.log(`  • Occupation: ${profile.occupation}`);
+        if (profile.name) {
+          console.log(`  • Name: ${profile.name}`);
+        }
+        if (profile.occupation) {
+          console.log(`  • Occupation: ${profile.occupation}`);
+        }
         if (profile.notes.length > 0) {
           console.log('  • Notes:');
           profile.notes.forEach((note) => console.log(`    - ${note}`));
@@ -515,7 +518,7 @@ async function main() {
       const config = {
         configurable: {
           thread_id: currentSession.id,
-          userId: userId,
+          userId,
         },
       };
 

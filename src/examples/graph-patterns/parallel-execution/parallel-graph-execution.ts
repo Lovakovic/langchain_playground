@@ -62,17 +62,48 @@
  * This is NOT a bug - this is how LangGraph is designed to work!
  */
 
-import {
-  Annotation,
-  CompiledStateGraph,
-  MemorySaver,
-  StateDefinition,
-  StateGraph,
-} from '@langchain/langgraph';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import type { CompiledStateGraph, StateDefinition } from '@langchain/langgraph';
+import { Annotation, MemorySaver, StateGraph } from '@langchain/langgraph';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+/**
+ * Data Interfaces
+ */
+interface InputData {
+  userId: string;
+  transactionId: string;
+  amount: number;
+  items: string[];
+  metadata: {
+    source: string;
+    timestamp: string;
+  };
+}
+
+interface TransformedData {
+  userId: string;
+  transactionId: string;
+  amount: number;
+  items: string[];
+  metadata: {
+    source: string;
+    timestamp: string;
+  };
+  processed: boolean;
+  normalizedAmount: number;
+  itemCount: number;
+}
+
+interface ApiResponse {
+  status?: string;
+  data?: string;
+  extra?: string;
+  notified?: boolean;
+}
 
 /**
  * Pipeline State Definition
@@ -82,7 +113,7 @@ dotenv.config();
  */
 const PipelineState = Annotation.Root({
   // Input data to process
-  inputData: Annotation<Record<string, any>>,
+  inputData: Annotation<InputData>,
 
   // SHARED: Messages with reducer for concurrent updates
   messages: Annotation<BaseMessage[]>({
@@ -123,7 +154,7 @@ const PipelineState = Annotation.Root({
   }>,
 
   dataProcessingResult: Annotation<{
-    transformedData: any;
+    transformedData: TransformedData;
     processingSteps: string[];
     completedAt: string;
   }>,
@@ -137,7 +168,7 @@ const PipelineState = Annotation.Root({
 
   externalIntegrationResult: Annotation<{
     apiCalls: string[];
-    responses: any[];
+    responses: ApiResponse[];
     completedAt: string;
   }>,
 
@@ -189,7 +220,7 @@ async function startPipeline(_state: typeof PipelineState.State) {
   const externalSteps = Math.floor(Math.random() * 3) + 2;
 
   console.log('\n🚀 STARTING PARALLEL PIPELINE EXECUTION');
-  console.log('=' + '='.repeat(60));
+  console.log(`=${'='.repeat(60)}`);
   console.log('📋 Configuration:');
   console.log(`- Quick Validation: 1 node`);
   console.log(`- Data Processing: 3 nodes`);
@@ -197,7 +228,7 @@ async function startPipeline(_state: typeof PipelineState.State) {
   console.log(`- External Integration: ${externalSteps} nodes (dynamic)`);
   console.log('\n⚠️  IMPORTANT: Watch how the aggregation node runs MULTIPLE times!');
   console.log('This is expected behavior - it runs once for each completing branch.');
-  console.log('=' + '='.repeat(60) + '\n');
+  console.log(`=${'='.repeat(60)}\n`);
 
   return {
     inputData,
@@ -502,7 +533,7 @@ async function aggregateResults(state: typeof PipelineState.State) {
   const currentExecution = state.aggregationCount + 1;
   const totalTime = Date.now() - state.startTime;
 
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log(`🔄 AGGREGATION NODE EXECUTION #${currentExecution} of 4`);
   console.log('='.repeat(60));
   console.log(`⏱️  Time since start: ${(totalTime / 1000).toFixed(2)}s`);
@@ -510,20 +541,36 @@ async function aggregateResults(state: typeof PipelineState.State) {
 
   // Show which results are available at this execution
   const availableResults = [];
-  if (state.quickValidationResult) availableResults.push('Quick Validation ✓');
-  if (state.dataProcessingResult) availableResults.push('Data Processing ✓');
-  if (state.externalIntegrationResult) availableResults.push('External Integration ✓');
-  if (state.qualityAssuranceResult) availableResults.push('Quality Assurance ✓');
+  if (state.quickValidationResult) {
+    availableResults.push('Quick Validation ✓');
+  }
+  if (state.dataProcessingResult) {
+    availableResults.push('Data Processing ✓');
+  }
+  if (state.externalIntegrationResult) {
+    availableResults.push('External Integration ✓');
+  }
+  if (state.qualityAssuranceResult) {
+    availableResults.push('Quality Assurance ✓');
+  }
 
   console.log(`📋 Available results at this execution:`);
   availableResults.forEach((r) => console.log(`   - ${r}`));
 
   // Show what's still pending
   const pendingBranches = [];
-  if (!state.quickValidationResult) pendingBranches.push('Quick Validation');
-  if (!state.dataProcessingResult) pendingBranches.push('Data Processing');
-  if (!state.externalIntegrationResult) pendingBranches.push('External Integration');
-  if (!state.qualityAssuranceResult) pendingBranches.push('Quality Assurance');
+  if (!state.quickValidationResult) {
+    pendingBranches.push('Quick Validation');
+  }
+  if (!state.dataProcessingResult) {
+    pendingBranches.push('Data Processing');
+  }
+  if (!state.externalIntegrationResult) {
+    pendingBranches.push('External Integration');
+  }
+  if (!state.qualityAssuranceResult) {
+    pendingBranches.push('Quality Assurance');
+  }
 
   if (pendingBranches.length > 0) {
     console.log(`⏳ Still waiting for:`);
@@ -546,10 +593,10 @@ ${state.qualityAssuranceResult ? `✓ Quality Assurance: ${state.qualityAssuranc
 
   if (currentExecution === 4) {
     console.log('🎉 This is the FINAL aggregation - all branches have completed!');
-    console.log('='.repeat(60) + '\n');
+    console.log(`${'='.repeat(60)}\n`);
   } else {
     console.log('📝 Note: This aggregation node will run again when the next branch completes.');
-    console.log('='.repeat(60) + '\n');
+    console.log(`${'='.repeat(60)}\n`);
   }
 
   return {
@@ -706,7 +753,7 @@ async function runDemo() {
       },
     );
 
-    console.log('\n' + '='.repeat(70));
+    console.log(`\n${'='.repeat(70)}`);
     console.log('✨ DEMONSTRATION COMPLETE');
     console.log('='.repeat(70));
     console.log('\n📊 FINAL SUMMARY:');

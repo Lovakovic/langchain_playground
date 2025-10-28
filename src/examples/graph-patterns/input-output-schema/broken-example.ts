@@ -13,18 +13,46 @@
  * See index.ts for the fixed version using input/output schemas.
  */
 
-import {
-  Annotation,
-  CompiledStateGraph,
-  MemorySaver,
-  StateDefinition,
-  StateGraph,
-} from '@langchain/langgraph';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import type { CompiledStateGraph, StateDefinition } from '@langchain/langgraph';
+import { Annotation, MemorySaver, StateGraph } from '@langchain/langgraph';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+/**
+ * Reddit API Response Types
+ */
+interface RedditPost {
+  title: string;
+  score: number;
+  subreddit: string;
+}
+
+interface RedditChild {
+  data: {
+    title: string;
+    score: number;
+    subreddit: string;
+  };
+}
+
+/**
+ * Hacker News API Response Types
+ */
+interface HackerNewsArticle {
+  title: string;
+  points: number;
+  comments: number;
+}
+
+interface HackerNewsHit {
+  title: string;
+  points: number;
+  num_comments: number;
+}
 
 /**
  * Shared state definition used by all subgraphs
@@ -67,14 +95,16 @@ async function fetchRedditData(state: typeof SharedAnalysisState.State) {
     );
 
     const data = await response.json();
-    const posts = data.data.children.map((child: any) => ({
-      title: child.data.title,
-      score: child.data.score,
-      subreddit: child.data.subreddit,
-    }));
+    const posts = data.data.children.map(
+      (child: RedditChild): RedditPost => ({
+        title: child.data.title,
+        score: child.data.score,
+        subreddit: child.data.subreddit,
+      }),
+    );
 
     const avgScore =
-      posts.reduce((acc: number, post: any) => acc + post.score, 0) / (posts.length || 1);
+      posts.reduce((acc: number, post: RedditPost) => acc + post.score, 0) / (posts.length || 1);
     const sentiment = Math.min(1, avgScore / 1000);
 
     return {
@@ -184,14 +214,16 @@ async function fetchNewsData(state: typeof SharedAnalysisState.State) {
     );
 
     const data = await response.json();
-    const articles = data.hits.map((hit: any) => ({
-      title: hit.title,
-      points: hit.points,
-      comments: hit.num_comments,
-    }));
+    const articles = data.hits.map(
+      (hit: HackerNewsHit): HackerNewsArticle => ({
+        title: hit.title,
+        points: hit.points,
+        comments: hit.num_comments,
+      }),
+    );
 
     const avgPoints =
-      articles.reduce((acc: number, article: any) => acc + article.points, 0) /
+      articles.reduce((acc: number, article: HackerNewsArticle) => acc + article.points, 0) /
       (articles.length || 1);
     const sentiment = Math.min(1, avgPoints / 500);
 

@@ -32,16 +32,17 @@
 
 import { z } from 'zod';
 import { tool } from '@langchain/core/tools';
-import { AIMessage, HumanMessage, BaseMessage, BaseMessageLike } from '@langchain/core/messages';
+import type { BaseMessage, BaseMessageLike } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import type { CompiledStateGraph, StateDefinition } from '@langchain/langgraph';
 import {
   Annotation,
   interrupt,
   MemorySaver,
   MessagesAnnotation,
   StateGraph,
-  CompiledStateGraph,
-  StateDefinition,
 } from '@langchain/langgraph';
+
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import dotenv from 'dotenv';
 import { ChatVertexAI } from '@langchain/google-vertexai';
@@ -190,7 +191,7 @@ async function critiqueAgentNode(state: typeof ParentStateAnnotation.State) {
   if (!state.lastCatImagePath) {
     return {
       messages: [new AIMessage('No cat image to critique')],
-      critiqueDecision: null as any,
+      critiqueDecision: null as 'approved' | 'rejected' | null,
     };
   }
 
@@ -232,7 +233,7 @@ async function critiqueAgentNode(state: typeof ParentStateAnnotation.State) {
   let critiqueMessage = '';
 
   for (const msg of result.messages) {
-    if (msg._getType() === 'ai' && msg.content && typeof msg.content === 'string') {
+    if (AIMessage.isInstance(msg) && msg.content && typeof msg.content === 'string') {
       critiqueMessage = msg.content;
     }
     if ('tool_calls' in msg && Array.isArray(msg.tool_calls)) {
@@ -266,7 +267,7 @@ async function critiqueAgentNode(state: typeof ParentStateAnnotation.State) {
  *
  * Note: We reset image path and decision to start fresh
  */
-async function humanInputNode(_state: typeof ParentStateAnnotation.State) {
+async function humanInputNode() {
   const response = await interrupt('The cat image was approved! What would you like to do next?');
 
   return {
@@ -290,7 +291,7 @@ function routeAfterCritique(state: typeof ParentStateAnnotation.State) {
   } else {
     // Rejected: go back to cat agent for another try
     const lastCritiqueMessage = state.messages[state.messages.length - 1];
-    if (lastCritiqueMessage && lastCritiqueMessage.content) {
+    if (lastCritiqueMessage?.content) {
       return 'cat_agent';
     }
   }
@@ -309,11 +310,11 @@ function routeAfterCatAgent(state: typeof ParentStateAnnotation.State) {
  * Type definitions for the Parent Graph
  */
 type ParentGraphState = typeof ParentStateAnnotation.State;
-type ParentGraphUpdate = {
+interface ParentGraphUpdate {
   messages?: BaseMessage[] | BaseMessage | BaseMessageLike | BaseMessageLike[];
   lastCatImagePath?: string | null;
   critiqueDecision?: 'approved' | 'rejected' | null;
-};
+}
 type ParentGraphNodes =
   | 'cat_agent'
   | 'extract_path'
@@ -384,7 +385,7 @@ export async function createParentGraph(): Promise<ParentGraph> {
         const match = msg.content.match(
           /saved it to your Desktop as `(.+\.(?:jpg|jpeg|png|gif|webp))`/i,
         );
-        if (match && match[1]) {
+        if (match?.[1]) {
           lastImagePath = path.join(os.homedir(), 'Desktop', match[1]);
           break;
         }
@@ -588,7 +589,7 @@ async function main() {
           ) {
             clearInterval(spinnerInterval);
             spinnerInterval = null;
-            process.stdout.write('\r' + ' '.repeat(80) + '\r');
+            process.stdout.write(`\r${' '.repeat(80)}\r`);
             console.log('✅ Cat picture fetched!');
           }
 

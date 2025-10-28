@@ -85,12 +85,16 @@ function extractCitations(response: AIMessageChunk): string[] {
   // Check if there are any tool-related blocks in additional_kwargs
   if (additionalKwargs?.content && Array.isArray(additionalKwargs.content)) {
     for (const block of additionalKwargs.content) {
-      if (!isAnthropicContentBlock(block)) continue;
+      if (!isAnthropicContentBlock(block)) {
+        continue;
+      }
 
       // Look for tool_result blocks that contain search results
       if (block.type === 'tool_result' && block.content && Array.isArray(block.content)) {
         for (const contentItem of block.content) {
-          if (!isAnthropicContentItem(contentItem)) continue;
+          if (!isAnthropicContentItem(contentItem)) {
+            continue;
+          }
 
           if (contentItem.type === 'text' && contentItem.text) {
             // Parse citations from the text if they're embedded
@@ -177,7 +181,7 @@ async function searchLatestNews() {
       });
     }
 
-    console.log('\n' + '='.repeat(60) + '\n');
+    console.log(`\n${'='.repeat(60)}\n`);
 
     // Example 2: Specific topic search
     console.log('📰 Example 2: AI/ML Recent Developments\n');
@@ -202,7 +206,7 @@ async function searchLatestNews() {
       });
     }
 
-    console.log('\n' + '='.repeat(60) + '\n');
+    console.log(`\n${'='.repeat(60)}\n`);
 
     // Example 3: Inspect raw response structure
     console.log('🔧 Raw Response Structure (for debugging):\n');

@@ -47,11 +47,13 @@
  * - Easy Integration: Works with existing monitoring/logging systems
  */
 
-import { RunnableConfig, RunnableLambda, RunnableSequence } from '@langchain/core/runnables';
+import type { RunnableConfig } from '@langchain/core/runnables';
+import { RunnableLambda, RunnableSequence } from '@langchain/core/runnables';
 import { dispatchCustomEvent } from '@langchain/core/callbacks/dispatch';
 import { MessagesAnnotation, StateGraph } from '@langchain/langgraph';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
-import { BaseTracer, Run } from '@langchain/core/tracers/base';
+import type { Run } from '@langchain/core/tracers/base';
+import { BaseTracer } from '@langchain/core/tracers/base';
 import * as path from 'path';
 import * as fs from 'fs';
 import dotenv from 'dotenv';
@@ -128,11 +130,11 @@ class HierarchyAwareEventHandler extends BaseTracer {
    */
   override async handleCustomEvent(
     eventName: string,
-    data: any,
+    data: unknown,
     runId: string,
     tags?: string[],
-    metadata?: Record<string, any>,
-  ): Promise<any> {
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     this.customEventCount++;
 
     // Build hierarchy path showing where this event was dispatched
@@ -154,7 +156,7 @@ class HierarchyAwareEventHandler extends BaseTracer {
     };
 
     // Write as JSONL (newline-delimited JSON)
-    this.logStream.write(JSON.stringify(event) + '\n');
+    this.logStream.write(`${JSON.stringify(event)}\n`);
 
     // Console output with visual hierarchy
     const indent = '  '.repeat(depth - 1);
@@ -233,6 +235,21 @@ function createBasicExample() {
 }
 
 /**
+ * Data structures for nested example
+ */
+interface FetchedData {
+  query: string;
+  results: string[];
+  fetchedAt: string;
+}
+
+interface ProcessedItem {
+  original: string;
+  processed: string;
+  index: number;
+}
+
+/**
  * Example 2: Nested Operations with Progress Tracking
  *
  * Shows how events maintain hierarchy in nested operations.
@@ -276,14 +293,14 @@ function createNestedExample() {
   }).withConfig({ runName: 'dataFetcher' });
 
   // Component 2: Data processing with progress events
-  const dataProcessor = RunnableLambda.from(async (data: any) => {
+  const dataProcessor = RunnableLambda.from(async (data: FetchedData): Promise<ProcessedItem[]> => {
     await dispatchCustomEvent('processing_started', {
       component: 'dataProcessor',
       itemCount: data.results.length,
     });
 
     // Process each item with progress tracking
-    const processed = [];
+    const processed: ProcessedItem[] = [];
     for (let i = 0; i < data.results.length; i++) {
       // Dispatch progress event for each item
       await dispatchCustomEvent('item_processed', {
@@ -292,11 +309,14 @@ function createNestedExample() {
         progress: ((i + 1) / data.results.length) * 100,
       });
 
-      processed.push({
-        original: data.results[i],
-        processed: data.results[i].toUpperCase(),
-        index: i,
-      });
+      const result = data.results[i];
+      if (result !== undefined) {
+        processed.push({
+          original: result,
+          processed: result.toUpperCase(),
+          index: i,
+        });
+      }
     }
 
     await dispatchCustomEvent('processing_completed', {
@@ -323,7 +343,7 @@ function createNestedExample() {
     dataProcessor,
 
     // End of pipeline
-    RunnableLambda.from(async (results: any) => {
+    RunnableLambda.from(async (results: ProcessedItem[]) => {
       await dispatchCustomEvent('pipeline_completed', {
         resultCount: results.length,
         success: true,
@@ -518,7 +538,7 @@ async function main() {
 
   // Example 1: Basic custom events
   console.log('1️⃣  Example 1: Basic Custom Events');
-  console.log('=' + '='.repeat(50) + '\n');
+  console.log(`=${'='.repeat(50)}\n`);
 
   const basicExample = createBasicExample();
   await basicExample.invoke('Hello world from LangChain', {
@@ -529,7 +549,7 @@ async function main() {
 
   // Example 2: Nested operations with progress
   console.log('2️⃣  Example 2: Nested Operations with Progress Tracking');
-  console.log('=' + '='.repeat(50) + '\n');
+  console.log(`=${'='.repeat(50)}\n`);
 
   const nestedExample = createNestedExample();
   await nestedExample.invoke('test query', {
@@ -540,7 +560,7 @@ async function main() {
 
   // Example 3: LangGraph with custom events
   console.log('3️⃣  Example 3: LangGraph with Custom Events');
-  console.log('=' + '='.repeat(50) + '\n');
+  console.log(`=${'='.repeat(50)}\n`);
 
   const graphExample = await createGraphExample();
   await graphExample.invoke(
@@ -552,7 +572,7 @@ async function main() {
 
   // Example 4: Error tracking
   console.log('4️⃣  Example 4: Error Tracking with Custom Events');
-  console.log('=' + '='.repeat(50) + '\n');
+  console.log(`=${'='.repeat(50)}\n`);
 
   const errorExample = createErrorTrackingExample();
 
@@ -585,7 +605,7 @@ async function main() {
 
   // Example 5: Stream Events API
   console.log('5️⃣  Example 5: Using Stream Events API');
-  console.log('=' + '='.repeat(50) + '\n');
+  console.log(`=${'='.repeat(50)}\n`);
 
   const streamExample = createBasicExample();
   const eventStream = await streamExample.streamEvents('Streaming test', {
@@ -603,7 +623,7 @@ async function main() {
   const summary = eventHandler.getSummary();
   eventHandler.close();
 
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📊 Summary:');
   console.log(`   Total custom events: ${summary.totalEvents}`);
   console.log(`   Unique runs tracked: ${summary.uniqueRuns}`);

@@ -25,9 +25,9 @@ interface CustomEvent {
   runId: string;
   hierarchy: string[];
   depth: number;
-  data: any;
+  data: Record<string, unknown>;
   tags?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface RunNode {
@@ -101,7 +101,9 @@ function buildRunTree(events: CustomEvent[]): Map<string, RunNode> {
     if (event && event.hierarchy.length > 1) {
       // Find potential parent by matching hierarchy prefix
       runMap.forEach((potentialParent, parentId) => {
-        if (parentId === runId) return;
+        if (parentId === runId) {
+          return;
+        }
 
         const parentEvent = potentialParent.events[0];
         if (
@@ -172,7 +174,7 @@ function printRunTree(node: RunNode, indent: string = '', isLast: boolean = true
  */
 function printTimeline(events: CustomEvent[]): void {
   console.log('\n📅 Event Timeline:');
-  console.log('=' + '='.repeat(70) + '\n');
+  console.log(`=${'='.repeat(70)}\n`);
 
   // Sort events by timestamp
   const sortedEvents = [...events].sort(
@@ -205,7 +207,7 @@ function printTimeline(events: CustomEvent[]): void {
  */
 function printStatistics(events: CustomEvent[]): void {
   console.log('\n📊 Event Statistics:');
-  console.log('=' + '='.repeat(70) + '\n');
+  console.log(`=${'='.repeat(70)}\n`);
 
   // Basic counts
   console.log(`Total events: ${events.length}`);
@@ -273,7 +275,7 @@ function printStatistics(events: CustomEvent[]): void {
  */
 async function visualize(logFile: string, options: { stats?: boolean; timeline?: boolean } = {}) {
   console.log('\n🔍 Custom Event Log Visualizer');
-  console.log('=' + '='.repeat(70) + '\n');
+  console.log(`=${'='.repeat(70)}\n`);
   console.log(`Analyzing: ${path.basename(logFile)}\n`);
 
   // Parse events
@@ -298,13 +300,15 @@ async function visualize(logFile: string, options: { stats?: boolean; timeline?:
   // Show hierarchy tree by default
   if (!options.stats && !options.timeline) {
     console.log('\n🌳 Run Hierarchy Tree:');
-    console.log('=' + '='.repeat(70) + '\n');
+    console.log(`=${'='.repeat(70)}\n`);
 
     const rootNodes = buildRunTree(events);
 
     Array.from(rootNodes.values()).forEach((node, i) => {
       printRunTree(node);
-      if (i < rootNodes.size - 1) console.log();
+      if (i < rootNodes.size - 1) {
+        console.log();
+      }
     });
   }
 }

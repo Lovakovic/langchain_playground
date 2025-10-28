@@ -33,11 +33,57 @@
  */
 
 import { Annotation, MemorySaver, StateGraph } from '@langchain/langgraph';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+/**
+ * API Response Interfaces
+ */
+interface RedditPost {
+  title: string;
+  score: number;
+  subreddit: string;
+}
+
+interface RedditChild {
+  data: {
+    title: string;
+    score: number;
+    subreddit: string;
+  };
+}
+
+interface RedditApiResponse {
+  data: {
+    children: RedditChild[];
+  };
+}
+
+interface HackerNewsHit {
+  title: string;
+  points: number;
+  num_comments: number;
+}
+
+interface HackerNewsApiResponse {
+  hits: HackerNewsHit[];
+}
+
+interface NewsArticle {
+  title: string;
+  points: number;
+  comments: number;
+}
+
+interface TwitterMockTweet {
+  text: string;
+  likes: number;
+  retweets: number;
+}
 
 /**
  * Parent Graph State Definition
@@ -138,7 +184,7 @@ const SubgraphInputSchema = Annotation.Root({
  */
 const SubgraphInternalState = Annotation.Root({
   query: Annotation<string>,
-  data: Annotation<any[]>,
+  data: Annotation<RedditPost[] | TwitterMockTweet[] | NewsArticle[]>,
   sentiment: Annotation<number>,
   quality: Annotation<string>,
   metadata: Annotation<{
@@ -221,15 +267,14 @@ async function fetchRedditData(state: typeof SubgraphInternalState.State) {
       { headers: { 'User-Agent': 'LangGraph-Example/1.0' } },
     );
 
-    const data = await response.json();
-    const posts = data.data.children.map((child: any) => ({
+    const data = (await response.json()) as RedditApiResponse;
+    const posts: RedditPost[] = data.data.children.map((child) => ({
       title: child.data.title,
       score: child.data.score,
       subreddit: child.data.subreddit,
     }));
 
-    const avgScore =
-      posts.reduce((acc: number, post: any) => acc + post.score, 0) / (posts.length || 1);
+    const avgScore = posts.reduce((acc, post) => acc + post.score, 0) / (posts.length || 1);
     const sentiment = Math.min(1, avgScore / 1000);
 
     // Returns update to INTERNAL state (data, sentiment, metadata)
@@ -368,16 +413,15 @@ async function fetchNewsData(state: typeof SubgraphInternalState.State) {
       `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(state.query)}&tags=story&hitsPerPage=10`,
     );
 
-    const data = await response.json();
-    const articles = data.hits.map((hit: any) => ({
+    const data = (await response.json()) as HackerNewsApiResponse;
+    const articles: NewsArticle[] = data.hits.map((hit) => ({
       title: hit.title,
       points: hit.points,
       comments: hit.num_comments,
     }));
 
     const avgPoints =
-      articles.reduce((acc: number, article: any) => acc + article.points, 0) /
-      (articles.length || 1);
+      articles.reduce((acc, article) => acc + article.points, 0) / (articles.length || 1);
     const sentiment = Math.min(1, avgPoints / 500);
 
     return {

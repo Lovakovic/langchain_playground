@@ -22,10 +22,51 @@ import { serialize } from 'v8';
 
 dotenv.config();
 
+interface Statistics {
+  mean: number;
+  min: number;
+  max: number;
+  stdDev: number;
+}
+
+interface PropertyInfo {
+  name: string;
+  type: string;
+  arrayLength?: number;
+  objectType?: string;
+  objectKeys?: number;
+  functionLength?: number;
+}
+
+interface GraphStructure {
+  type: string;
+  properties: PropertyInfo[];
+  propertyCount?: number;
+  error?: string;
+}
+
+interface GraphSizeMetadata {
+  nodes: number | string;
+  hasCheckpointer: boolean;
+  structure: GraphStructure;
+  measurements: {
+    v8Serialization: string;
+    deepCalculation: string;
+  };
+}
+
+interface GraphSizeResult {
+  v8Size: number;
+  deepSize: number;
+  estimatedSize: number;
+  kb: number;
+  metadata: GraphSizeMetadata;
+}
+
 /**
  * Statistics utility to calculate mean, min, max, and standard deviation
  */
-function calculateStats(values: number[]) {
+function calculateStats(values: number[]): Statistics {
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -40,27 +81,39 @@ function calculateStats(values: number[]) {
  * Deep size calculator - recursively measures object size
  * Handles circular references and complex nested structures
  */
-function calculateDeepSize(obj: any, seen = new WeakSet()): number {
-  if (obj === null || obj === undefined) return 0;
+function calculateDeepSize(obj: unknown, seen = new WeakSet()): number {
+  if (obj === null || obj === undefined) {
+    return 0;
+  }
 
   const type = typeof obj;
 
   // Primitives
-  if (type === 'boolean') return 4;
-  if (type === 'number') return 8;
-  if (type === 'string') return obj.length * 2; // UTF-16
-  if (type === 'symbol') return Symbol.keyFor(obj)?.length ?? 0;
+  if (type === 'boolean') {
+    return 4;
+  }
+  if (type === 'number') {
+    return 8;
+  }
+  if (type === 'string') {
+    return (obj as string).length * 2;
+  } // UTF-16
+  if (type === 'symbol') {
+    return Symbol.keyFor(obj as symbol)?.length ?? 0;
+  }
 
   // Avoid circular references
   if (type === 'object' || type === 'function') {
-    if (seen.has(obj)) return 0;
-    seen.add(obj);
+    if (seen.has(obj as object)) {
+      return 0;
+    }
+    seen.add(obj as object);
   }
 
   // Functions - estimate size based on source code length
   if (type === 'function') {
     try {
-      return obj.toString().length * 2;
+      return (obj as Function).toString().length * 2;
     } catch {
       return 0;
     }
@@ -79,16 +132,17 @@ function calculateDeepSize(obj: any, seen = new WeakSet()): number {
 
   // Objects
   if (type === 'object') {
+    const objRecord = obj as Record<string, unknown>;
     // Object overhead
     size += 32;
 
     // Properties
     try {
-      const keys = Object.keys(obj);
+      const keys = Object.keys(objRecord);
       for (const key of keys) {
         size += key.length * 2; // Key size
         try {
-          size += calculateDeepSize(obj[key], seen);
+          size += calculateDeepSize(objRecord[key], seen);
         } catch {
           // Skip properties we can't access
         }
@@ -104,33 +158,33 @@ function calculateDeepSize(obj: any, seen = new WeakSet()): number {
 /**
  * Inspect graph structure to understand what it contains
  */
-function inspectGraphStructure(graph: any): any {
-  const structure: any = {
-    type: graph.constructor?.name || 'Unknown',
+function inspectGraphStructure(graph: unknown): GraphStructure {
+  const structure: GraphStructure = {
+    type: (graph as Record<string, unknown>)?.constructor?.name || 'Unknown',
     properties: [],
   };
 
   try {
-    const keys = Object.keys(graph);
+    const keys = Object.keys(graph as Record<string, unknown>);
     structure.propertyCount = keys.length;
 
     for (const key of keys) {
       try {
-        const value = graph[key];
+        const value = (graph as Record<string, unknown>)[key];
         const valueType = typeof value;
-        const info: any = { name: key, type: valueType };
+        const info: PropertyInfo = { name: key, type: valueType };
 
         if (valueType === 'object' && value !== null) {
           if (Array.isArray(value)) {
             info.arrayLength = value.length;
           } else {
-            info.objectType = value.constructor?.name;
+            info.objectType = (value as { constructor?: { name?: string } }).constructor?.name;
             try {
-              info.objectKeys = Object.keys(value).length;
+              info.objectKeys = Object.keys(value as Record<string, unknown>).length;
             } catch {}
           }
         } else if (valueType === 'function') {
-          info.functionLength = value.toString().length;
+          info.functionLength = (value as Function).toString().length;
         }
 
         structure.properties.push(info);
@@ -148,13 +202,7 @@ function inspectGraphStructure(graph: any): any {
 /**
  * Measure the size of a compiled graph using multiple approaches
  */
-function measureGraphSize(graph: any): {
-  v8Size: number;
-  deepSize: number;
-  estimatedSize: number;
-  kb: number;
-  metadata: any;
-} {
+function measureGraphSize(graph: unknown): GraphSizeResult {
   let v8Size = 0;
   let deepSize = 0;
 
@@ -180,14 +228,17 @@ function measureGraphSize(graph: any): {
   // Use the best available measurement
   const estimatedSize = v8Size > 0 ? v8Size : deepSize > 0 ? deepSize : 0;
 
+  const graphRecord = graph as Record<string, unknown>;
   return {
     v8Size,
     deepSize,
     estimatedSize,
     kb: estimatedSize / 1024,
     metadata: {
-      nodes: graph.nodes ? Object.keys(graph.nodes).length : 'N/A',
-      hasCheckpointer: !!graph.checkpointer,
+      nodes: graphRecord['nodes']
+        ? Object.keys(graphRecord['nodes'] as Record<string, unknown>).length
+        : 'N/A',
+      hasCheckpointer: !!graphRecord['checkpointer'],
       structure,
       measurements: {
         v8Serialization: v8Size > 0 ? `${v8Size} bytes` : 'Failed',
@@ -307,7 +358,7 @@ async function runPerformanceBenchmark(iterations: number = 10) {
   console.log('─'.repeat(60));
 
   const withoutCheckpointerTimes: number[] = [];
-  let withoutCheckpointerSize: any = null;
+  let withoutCheckpointerSize: GraphSizeResult | null = null;
 
   for (let i = 0; i < iterations; i++) {
     process.stdout.write(`\rIteration ${i + 1}/${iterations}...`);
@@ -317,7 +368,7 @@ async function runPerformanceBenchmark(iterations: number = 10) {
       withoutCheckpointerSize = result.graphSize;
     }
   }
-  process.stdout.write('\r' + ' '.repeat(50) + '\r');
+  process.stdout.write(`\r${' '.repeat(50)}\r`);
 
   const withoutCheckpointerStats = calculateStats(withoutCheckpointerTimes);
 
@@ -327,26 +378,28 @@ async function runPerformanceBenchmark(iterations: number = 10) {
   console.log(`   Max:     ${withoutCheckpointerStats.max.toFixed(2)} ms`);
   console.log(`   Std Dev: ${withoutCheckpointerStats.stdDev.toFixed(2)} ms`);
 
-  console.log('\n📦 Compiled Graph Size:');
-  console.log(
-    `   V8 Serialization: ${withoutCheckpointerSize.v8Size > 0 ? `${withoutCheckpointerSize.v8Size.toLocaleString()} bytes (${(withoutCheckpointerSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`,
-  );
-  console.log(
-    `   Deep Calculation: ${withoutCheckpointerSize.deepSize > 0 ? `${withoutCheckpointerSize.deepSize.toLocaleString()} bytes (${(withoutCheckpointerSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`,
-  );
-  console.log(
-    `   Estimated Size:   ${withoutCheckpointerSize.estimatedSize.toLocaleString()} bytes (${withoutCheckpointerSize.kb.toFixed(2)} KB)`,
-  );
+  if (withoutCheckpointerSize) {
+    console.log('\n📦 Compiled Graph Size:');
+    console.log(
+      `   V8 Serialization: ${withoutCheckpointerSize.v8Size > 0 ? `${withoutCheckpointerSize.v8Size.toLocaleString()} bytes (${(withoutCheckpointerSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`,
+    );
+    console.log(
+      `   Deep Calculation: ${withoutCheckpointerSize.deepSize > 0 ? `${withoutCheckpointerSize.deepSize.toLocaleString()} bytes (${(withoutCheckpointerSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`,
+    );
+    console.log(
+      `   Estimated Size:   ${withoutCheckpointerSize.estimatedSize.toLocaleString()} bytes (${withoutCheckpointerSize.kb.toFixed(2)} KB)`,
+    );
 
-  console.log('\n🔍 Graph Structure:');
-  console.log(`   ${JSON.stringify(withoutCheckpointerSize.metadata.structure, null, 2)}`);
+    console.log('\n🔍 Graph Structure:');
+    console.log(`   ${JSON.stringify(withoutCheckpointerSize.metadata.structure, null, 2)}`);
+  }
 
   // Test with checkpointer
   console.log('\n\n📊 Benchmark 2: Graph WITH Checkpointer (MemorySaver)');
   console.log('─'.repeat(60));
 
   const withCheckpointerTimes: number[] = [];
-  let withCheckpointerSize: any = null;
+  let withCheckpointerSize: GraphSizeResult | null = null;
 
   for (let i = 0; i < iterations; i++) {
     process.stdout.write(`\rIteration ${i + 1}/${iterations}...`);
@@ -356,7 +409,7 @@ async function runPerformanceBenchmark(iterations: number = 10) {
       withCheckpointerSize = result.graphSize;
     }
   }
-  process.stdout.write('\r' + ' '.repeat(50) + '\r');
+  process.stdout.write(`\r${' '.repeat(50)}\r`);
 
   const withCheckpointerStats = calculateStats(withCheckpointerTimes);
 
@@ -366,19 +419,21 @@ async function runPerformanceBenchmark(iterations: number = 10) {
   console.log(`   Max:     ${withCheckpointerStats.max.toFixed(2)} ms`);
   console.log(`   Std Dev: ${withCheckpointerStats.stdDev.toFixed(2)} ms`);
 
-  console.log('\n📦 Compiled Graph Size:');
-  console.log(
-    `   V8 Serialization: ${withCheckpointerSize.v8Size > 0 ? `${withCheckpointerSize.v8Size.toLocaleString()} bytes (${(withCheckpointerSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`,
-  );
-  console.log(
-    `   Deep Calculation: ${withCheckpointerSize.deepSize > 0 ? `${withCheckpointerSize.deepSize.toLocaleString()} bytes (${(withCheckpointerSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`,
-  );
-  console.log(
-    `   Estimated Size:   ${withCheckpointerSize.estimatedSize.toLocaleString()} bytes (${withCheckpointerSize.kb.toFixed(2)} KB)`,
-  );
+  if (withCheckpointerSize) {
+    console.log('\n📦 Compiled Graph Size:');
+    console.log(
+      `   V8 Serialization: ${withCheckpointerSize.v8Size > 0 ? `${withCheckpointerSize.v8Size.toLocaleString()} bytes (${(withCheckpointerSize.v8Size / 1024).toFixed(2)} KB)` : 'Failed'}`,
+    );
+    console.log(
+      `   Deep Calculation: ${withCheckpointerSize.deepSize > 0 ? `${withCheckpointerSize.deepSize.toLocaleString()} bytes (${(withCheckpointerSize.deepSize / 1024).toFixed(2)} KB)` : 'Failed'}`,
+    );
+    console.log(
+      `   Estimated Size:   ${withCheckpointerSize.estimatedSize.toLocaleString()} bytes (${withCheckpointerSize.kb.toFixed(2)} KB)`,
+    );
 
-  console.log('\n🔍 Graph Structure:');
-  console.log(`   ${JSON.stringify(withCheckpointerSize.metadata.structure, null, 2)}`);
+    console.log('\n🔍 Graph Structure:');
+    console.log(`   ${JSON.stringify(withCheckpointerSize.metadata.structure, null, 2)}`);
+  }
 
   // Summary comparison
   console.log('\n\n📈 Summary Comparison');

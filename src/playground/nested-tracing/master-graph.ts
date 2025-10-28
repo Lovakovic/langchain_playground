@@ -1,7 +1,8 @@
 import { END, START, StateGraph } from '@langchain/langgraph';
 import { dispatchCustomEvent } from '@langchain/core/callbacks/dispatch';
 import { MasterGraphState } from './states';
-import { CustomEventTypes, StateTransitionEventData } from './types';
+import type { StateTransitionEventData } from './types';
+import { CustomEventTypes } from './types';
 import { createExtractionSubgraph } from './extraction-subgraph';
 import {
   createCategoryEnrichmentSubgraph,
@@ -198,16 +199,40 @@ async function finalAssemblyNode(
   });
 
   // Create final menu structure by combining all enrichment results
+  // Group items by section and enrich them with all available data
+  const sectionMap = new Map<string, typeof items>();
+  items.forEach((item) => {
+    const sectionName = item.section;
+    if (!sectionMap.has(sectionName)) {
+      sectionMap.set(sectionName, []);
+    }
+    sectionMap.get(sectionName)!.push(item);
+  });
+
+  // Build sections with enriched items
+  const sections = Array.from(sectionMap.entries()).map(([sectionName, sectionItems]) => ({
+    name: sectionName,
+    items: sectionItems.map((item) => {
+      // Find enrichments for this item
+      const category = categories.find((c) => c.itemId === item.id);
+      const allergenData = allergens.find((a) => a.itemId === item.id);
+      const translation = translations.find((t) => t.itemId === item.id);
+
+      return {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        category: category?.category,
+        allergens: allergenData?.allergens,
+        translatedName: translation?.translatedName,
+        translatedDescription: translation?.translatedDescription,
+      };
+    }),
+  }));
+
   const finalMenuStructure = {
-    menuId: state.menuId,
-    totalItems: items.length,
-    sections: state.menuStructure || [],
-    enrichments: {
-      categories: categories.length,
-      allergens: allergens.length,
-      translations: translations.length,
-    },
-    processedAt: new Date().toISOString(),
+    sections,
   };
 
   // Calculate completeness score based on how much enrichment was successful
@@ -232,9 +257,7 @@ async function finalAssemblyNode(
   });
 
   console.log(`  📈 Completeness score: ${Math.round(completenessScore * 100)}%`);
-  console.log(
-    `  🎯 Final structure: ${items.length} items across ${(state.menuStructure || []).length} sections`,
-  );
+  console.log(`  🎯 Final structure: ${items.length} items across ${sections.length} sections`);
 
   return {
     finalMenuStructure,

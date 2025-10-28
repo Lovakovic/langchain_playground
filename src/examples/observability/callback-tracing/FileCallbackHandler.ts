@@ -3,6 +3,13 @@ import * as fs from 'fs';
 import * as util from 'util';
 
 /**
+ * Agent run extension with actions array
+ */
+interface AgentRun extends Run {
+  actions?: unknown[];
+}
+
+/**
  * FileCallbackHandler - A Custom LangChain Callback Handler for File Logging
  *
  * This handler extends BaseTracer to capture ALL events that occur during
@@ -48,7 +55,7 @@ export class FileCallbackHandler extends BaseTracer {
    * This is essential for debugging as you can see the exact message types
    * being passed through the system (HumanMessage, AIMessage, ToolMessage, etc.)
    */
-  private log(...args: any[]) {
+  private log(...args: unknown[]) {
     // Transform each argument to preserve type information
     const formattedArgs = args.map((arg) => {
       if (typeof arg === 'object' && arg !== null) {
@@ -106,7 +113,9 @@ export class FileCallbackHandler extends BaseTracer {
    * - Chain operations are usually fast (<10ms)
    */
   private elapsed(run: Run): string {
-    if (!run.end_time) return '';
+    if (!run.end_time) {
+      return '';
+    }
     const elapsed = run.end_time - run.start_time;
     if (elapsed < 1000) {
       return `${elapsed}ms`;
@@ -296,7 +305,7 @@ export class FileCallbackHandler extends BaseTracer {
    */
 
   override onAgentAction(run: Run) {
-    const agentRun = run as any;
+    const agentRun = run as AgentRun;
     const crumbs = this.getBreadcrumbs(run);
     this.log(
       `[agent/action] [${crumbs}] Agent selected action:`,

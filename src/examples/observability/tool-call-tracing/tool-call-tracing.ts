@@ -8,7 +8,8 @@
  * making it easy to understand where in your graph structure tools are being called.
  */
 
-import { BaseTracer, Run } from '@langchain/core/tracers/base';
+import type { Run } from '@langchain/core/tracers/base';
+import { BaseTracer } from '@langchain/core/tracers/base';
 import { StateGraph, MessagesAnnotation, Annotation } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
@@ -150,7 +151,7 @@ export class HierarchicalToolTracer extends BaseTracer {
 
     const hierarchy = this.buildHierarchyDisplay(run.id);
 
-    console.log('\n' + '='.repeat(80));
+    console.log(`\n${'='.repeat(80)}`);
     console.log('🛠️  TOOL END EVENT CAPTURED');
     console.log('='.repeat(80));
 
@@ -198,7 +199,7 @@ export class HierarchicalToolTracer extends BaseTracer {
       }),
     );
 
-    console.log('\n' + '='.repeat(80) + '\n');
+    console.log(`\n${'='.repeat(80)}\n`);
   }
 
   getSummary() {
@@ -502,7 +503,7 @@ function createMainGraph() {
 // Main execution
 async function main() {
   console.log('🔬 Multi-Layer Subgraph Tool Tracing Example');
-  console.log('=' + '='.repeat(79));
+  console.log(`=${'='.repeat(79)}`);
   console.log('\nThis example demonstrates tool call tracing in a 3-layer nested graph structure.');
   console.log('\n📊 GRAPH ARCHITECTURE:');
   console.log('\n    MainGraph (Layer 1)');

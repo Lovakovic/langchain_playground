@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { ChatVertexAI } from '@langchain/google-vertexai';
-import { ContentBlock, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import type { ContentBlock } from '@langchain/core/messages';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -10,10 +11,7 @@ import { fileURLToPath } from 'url';
 import { fromBuffer } from 'pdf2pic';
 import { v4 as uuidv4 } from 'uuid';
 // @ts-ignore
-import {
-  formatTextWithPageDelimiters,
-  processDocumentByPages,
-} from './index';
+import { formatTextWithPageDelimiters, processDocumentByPages } from './index';
 
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
@@ -123,7 +121,7 @@ class OCRRebuilder {
     try {
       const { stdout } = await execAsync(`pdfinfo "${pdfPath}"`);
       const sizeMatch = stdout.match(/Page size:\s*(\d+(?:\.\d+)?)\s+x\s+(\d+(?:\.\d+)?)\s+pts/);
-      if (sizeMatch && sizeMatch[1] && sizeMatch[2]) {
+      if (sizeMatch?.[1] && sizeMatch[2]) {
         return { width: parseFloat(sizeMatch[1]), height: parseFloat(sizeMatch[2]) };
       }
     } catch (error) {

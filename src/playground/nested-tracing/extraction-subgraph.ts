@@ -4,10 +4,19 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 import { dispatchCustomEvent } from '@langchain/core/callbacks/dispatch';
 import { ExtractionState } from './states';
-import { CustomEventTypes, MockMenuItem, ProgressEventData } from './types';
+import type { MockMenuItem, ProgressEventData } from './types';
+import { CustomEventTypes } from './types';
 import { createItemExtractionTool, createStructureAnalysisTool } from './tools';
 
 dotenv.config();
+
+/**
+ * Menu section structure returned by the structure analysis tool
+ */
+interface MenuSection {
+  name: string;
+  itemCount: number;
+}
 
 /**
  * Extraction Subgraph Implementation
@@ -165,7 +174,7 @@ async function structureAnalysisNode(
         analysisType: 'menu_structure',
         sectionsFound: toolCall.args['sections'].length,
         toolCallSuccessful: true,
-        sections: toolCall.args['sections'].map((s: any) => ({
+        sections: toolCall.args['sections'].map((s: MenuSection) => ({
           name: s.name,
           itemCount: s.itemCount,
         })),

@@ -16,11 +16,54 @@
  */
 
 import { Annotation, MemorySaver, StateGraph } from '@langchain/langgraph';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import dotenv from 'dotenv';
 import { randomBytes } from 'crypto';
 
 dotenv.config();
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+/**
+ * Result of processing data in SimplePipelineState
+ */
+interface ProcessedResult {
+  id: number;
+  value: number;
+  timestamp: string;
+}
+
+/**
+ * Data passed between stages in subgraph example
+ */
+interface Stage1Data {
+  stage1Complete: boolean;
+  size: number;
+}
+
+/**
+ * Summary of processing across stages
+ */
+interface ProcessingSummary {
+  stage1Results: number;
+  stage2Results: number;
+  totalProcessed: number;
+}
+
+/**
+ * Item in a batch for batch processing
+ */
+interface BatchItem {
+  id: number;
+  data: Buffer;
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
 
 // Helper to log memory usage
 function logMemoryUsage(label: string) {
@@ -62,8 +105,8 @@ function generateLargeData(sizeMB: number): Buffer {
  * - Rolling metrics/statistics
  * - Any append-only data where recent items are most valuable
  */
-const memoryLimitedReducer = (maxItems: number) => {
-  return (current: any[], update: any[]) => {
+const memoryLimitedReducer = <T>(maxItems: number) => {
+  return (current: T[], update: T[]): T[] => {
     const combined = current.concat(update);
     if (combined.length <= maxItems) {
       return combined;
@@ -97,9 +140,11 @@ const memoryLimitedReducer = (maxItems: number) => {
  * - Intermediate computation results
  * - Any data with a clear lifecycle
  */
-const clearableReducer = (_current: any, update: any) => {
-  if (update === 'CLEAR') {
-    console.log('🧹 Clearing data from state');
+const clearableReducer = <T>(_current: T | null, update: T | 'CLEAR' | null): T | null => {
+  if (update === 'CLEAR' || update === null) {
+    if (update === 'CLEAR') {
+      console.log('🧹 Clearing data from state');
+    }
     return null;
   }
   return update;
@@ -134,19 +179,19 @@ const SimplePipelineState = Annotation.Root({
 
   // Large data that gets cleared
   largeData: Annotation<Buffer | null>({
-    reducer: clearableReducer,
+    reducer: clearableReducer<Buffer>,
     default: () => null,
   }),
 
   // Results with memory limit
-  results: Annotation<any[]>({
-    reducer: memoryLimitedReducer(10),
+  results: Annotation<ProcessedResult[]>({
+    reducer: memoryLimitedReducer<ProcessedResult>(10),
     default: () => [],
   }),
 
   // Message history with limit
   messages: Annotation<BaseMessage[]>({
-    reducer: memoryLimitedReducer(5),
+    reducer: memoryLimitedReducer<BaseMessage>(5),
     default: () => [],
   }),
 });
@@ -177,7 +222,7 @@ async function processData(state: typeof SimplePipelineState.State) {
 
   // PATTERN: Extract features instead of keeping raw data
   // We process the 20MB buffer but only keep small results
-  const results = [];
+  const results: ProcessedResult[] = [];
   for (let i = 0; i < 20; i++) {
     results.push({
       id: i,
@@ -262,17 +307,13 @@ const MasterState = Annotation.Root({
   config: Annotation<{ chunkSize: number }>,
 
   // Stage-specific data (cleared between stages)
-  stageData: Annotation<any>({
-    reducer: clearableReducer,
+  stageData: Annotation<Stage1Data | null>({
+    reducer: clearableReducer<Stage1Data>,
     default: () => null,
   }),
 
   // Accumulated results
-  summary: Annotation<{
-    stage1Results: number;
-    stage2Results: number;
-    totalProcessed: number;
-  }>({
+  summary: Annotation<ProcessingSummary>({
     reducer: (current, update) => ({ ...current, ...update }),
     default: () => ({
       stage1Results: 0,
@@ -282,7 +323,7 @@ const MasterState = Annotation.Root({
   }),
 
   messages: Annotation<BaseMessage[]>({
-    reducer: memoryLimitedReducer(10),
+    reducer: memoryLimitedReducer<BaseMessage>(10),
     default: () => [],
   }),
 });
@@ -293,7 +334,7 @@ const Stage1InputSchema = Annotation.Root({
 });
 
 const Stage1OutputSchema = Annotation.Root({
-  stageData: Annotation<any>,
+  stageData: Annotation<Stage1Data>,
   summary: Annotation<{ stage1Results: number }>,
   messages: Annotation<BaseMessage[]>,
 });
@@ -336,8 +377,8 @@ function createStage1Subgraph() {
 
 // Stage 2 Subgraph: Different input/output access
 const Stage2InputSchema = Annotation.Root({
-  stageData: Annotation<any>,
-  summary: Annotation<any>,
+  stageData: Annotation<Stage1Data | null>,
+  summary: Annotation<ProcessingSummary>,
 });
 
 const Stage2OutputSchema = Annotation.Root({
@@ -463,8 +504,8 @@ const BatchProcessingState = Annotation.Root({
   currentBatch: Annotation<number>,
 
   // Current batch data (cleared after each batch)
-  batchData: Annotation<any[] | null>({
-    reducer: clearableReducer,
+  batchData: Annotation<BatchItem[] | null>({
+    reducer: clearableReducer<BatchItem[]>,
     default: () => null,
   }),
 
@@ -475,7 +516,7 @@ const BatchProcessingState = Annotation.Root({
   }),
 
   messages: Annotation<BaseMessage[]>({
-    reducer: memoryLimitedReducer(10),
+    reducer: memoryLimitedReducer<BaseMessage>(10),
     default: () => [],
   }),
 });
@@ -488,7 +529,7 @@ async function loadBatch(state: typeof BatchProcessingState.State) {
 
   // PATTERN: Load only what can fit in memory at once
   // If batchSize=3, we load 3MB instead of entire dataset
-  const batchData = Array(batchEnd - batchStart)
+  const batchData: BatchItem[] = Array(batchEnd - batchStart)
     .fill(0)
     .map((_, i) => ({
       id: batchStart + i,
@@ -550,7 +591,7 @@ async function runAllExamples() {
   console.log('=== 🧠 LangGraph Memory Management Examples ===\n');
 
   // Example 1: Simple Pipeline
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📌 Example 1: Simple Memory-Managed Pipeline');
   console.log('='.repeat(60));
 
@@ -569,7 +610,7 @@ async function runAllExamples() {
   console.log(`- Messages kept: ${result1.messages.length} (limited)`);
 
   // Example 2: Segmented Pipeline
-  console.log('\n\n' + '='.repeat(60));
+  console.log(`\n\n${'='.repeat(60)}`);
   console.log('📌 Example 2: Subgraph Memory Segmentation');
   console.log('='.repeat(60));
 
@@ -584,7 +625,7 @@ async function runAllExamples() {
   console.log(`- Total processed: ${result2.summary.totalProcessed}MB`);
 
   // Example 3: Batch Processing
-  console.log('\n\n' + '='.repeat(60));
+  console.log(`\n\n${'='.repeat(60)}`);
   console.log('📌 Example 3: Batch Processing Pattern');
   console.log('='.repeat(60));
 
@@ -604,7 +645,7 @@ async function runAllExamples() {
   console.log(`- Batch data cleared: ${result3.batchData === null ? '✅' : '❌'}`);
 
   // Final memory state
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   logMemoryUsage('All Examples Complete');
 
   console.log('\n🎯 Key Takeaways:');

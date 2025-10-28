@@ -16,7 +16,8 @@
  */
 
 import { Annotation, GraphRecursionError, MemorySaver, StateGraph } from '@langchain/langgraph';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { randomUUID } from 'crypto';
 import dotenv from 'dotenv';
 
@@ -164,9 +165,9 @@ function createLoopingGraph() {
  * The simplest way to add a timeout - using the built-in static method
  */
 async function example1_basicTimeout() {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📋 EXAMPLE 1: Basic Timeout with AbortSignal.timeout()');
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   const graph = createProcessingGraph();
   const threadId = `timeout-basic-${Date.now()}`;
@@ -188,13 +189,12 @@ async function example1_basicTimeout() {
     );
 
     console.log('\n✨ Execution completed before timeout');
-  } catch (error: any) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime;
 
     if (
-      error.name === 'TimeoutError' ||
-      error.name === 'AbortError' ||
-      error.message === 'Aborted'
+      error instanceof Error &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted')
     ) {
       console.log(`\n⏱️  Execution timed out after ${(duration / 1000).toFixed(2)}s`);
       console.log('This is expected behavior - the timeout worked!');
@@ -210,9 +210,9 @@ async function example1_basicTimeout() {
  * More control - can clear timeout on success
  */
 async function example2_manualTimeout() {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📋 EXAMPLE 2: Manual Timeout with AbortController');
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   const graph = createProcessingGraph();
   const threadId = `timeout-manual-${Date.now()}`;
@@ -243,14 +243,15 @@ async function example2_manualTimeout() {
     clearTimeout(timeoutId);
     const duration = Date.now() - startTime;
     console.log(`\n✨ Completed successfully in ${(duration / 1000).toFixed(2)}s`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     clearTimeout(timeoutId);
     const duration = Date.now() - startTime;
 
     if (
-      error.name === 'AbortError' ||
-      error.message === 'Operation timed out' ||
-      error.message === 'Aborted'
+      error instanceof Error &&
+      (error.name === 'AbortError' ||
+        error.message === 'Operation timed out' ||
+        error.message === 'Aborted')
     ) {
       console.log(`\n⏱️  Timed out after ${(duration / 1000).toFixed(2)}s`);
     } else {
@@ -265,9 +266,9 @@ async function example2_manualTimeout() {
  * Shows how to use both step-based and time-based limits
  */
 async function example3_combinedLimits() {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📋 EXAMPLE 3: Combined Recursion Limit + Timeout');
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   const graph = createLoopingGraph();
   const threadId = `combined-${Date.now()}`;
@@ -290,16 +291,15 @@ async function example3_combinedLimits() {
 
     console.log('\n✨ Completed successfully');
     console.log(`Final iteration count: ${result.iterationCount}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime;
 
     if (error instanceof GraphRecursionError) {
       console.log(`\n🔢 Hit recursion limit after ${(duration / 1000).toFixed(2)}s`);
       console.log('The step limit was reached before the timeout');
     } else if (
-      error.name === 'TimeoutError' ||
-      error.name === 'AbortError' ||
-      error.message === 'Aborted'
+      error instanceof Error &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted')
     ) {
       console.log(`\n⏱️  Hit timeout after ${(duration / 1000).toFixed(2)}s`);
     } else {
@@ -314,9 +314,9 @@ async function example3_combinedLimits() {
  * Retries with increasing timeouts
  */
 async function example4_progressiveTimeout() {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📋 EXAMPLE 4: Progressive Timeout Strategy');
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   const graph = createProcessingGraph();
   const baseTimeout = 2000; // Start with 2 seconds
@@ -347,13 +347,14 @@ async function example4_progressiveTimeout() {
       const duration = Date.now() - startTime;
       console.log(`✅ Success on attempt ${attempt} after ${(duration / 1000).toFixed(2)}s`);
       break; // Success, exit loop
-    } catch (error: any) {
+    } catch (error: unknown) {
       const duration = Date.now() - startTime;
 
       if (
-        error.name === 'TimeoutError' ||
-        error.name === 'AbortError' ||
-        error.message === 'Aborted'
+        error instanceof Error &&
+        (error.name === 'TimeoutError' ||
+          error.name === 'AbortError' ||
+          error.message === 'Aborted')
       ) {
         console.log(`⏱️  Attempt ${attempt} timed out after ${(duration / 1000).toFixed(2)}s`);
 
@@ -374,9 +375,9 @@ async function example4_progressiveTimeout() {
  * Combines manual cancellation with automatic timeout
  */
 async function example5_userCancellableWithTimeout() {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📋 EXAMPLE 5: User-Cancellable + Timeout Fallback');
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   const graph = createProcessingGraph();
   const threadId = `user-cancel-${Date.now()}`;
@@ -410,12 +411,12 @@ async function example5_userCancellableWithTimeout() {
     );
 
     console.log('\n✨ Completed successfully');
-  } catch (error: any) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime;
 
     if (userController.signal.aborted) {
       console.log(`\n👤 User cancelled after ${(duration / 1000).toFixed(2)}s`);
-    } else if (error.name === 'TimeoutError') {
+    } else if (error instanceof Error && error.name === 'TimeoutError') {
       console.log(`\n⏱️  Automatic timeout after ${(duration / 1000).toFixed(2)}s`);
     } else {
       console.error('\n❌ Unexpected error:', error);
@@ -429,9 +430,9 @@ async function example5_userCancellableWithTimeout() {
  * Cancel when resource usage exceeds limit
  */
 async function example6_resourceBasedCancellation() {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📋 EXAMPLE 6: Resource-Based Cancellation');
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   const graph = createProcessingGraph();
   const threadId = `resource-${Date.now()}`;
@@ -450,7 +451,7 @@ async function example6_resourceBasedCancellation() {
         configurable: { thread_id: threadId },
       });
 
-      if (state && state.values && typeof state.values.resourcesUsed === 'number') {
+      if (state?.values && typeof state.values.resourcesUsed === 'number') {
         if (state.values.resourcesUsed > resourceLimit) {
           console.log(
             `\n📊 Resource limit exceeded: ${state.values.resourcesUsed}/${resourceLimit}`,
@@ -478,13 +479,16 @@ async function example6_resourceBasedCancellation() {
     clearInterval(resourceMonitor);
     console.log('\n✨ Completed within resource limits');
     console.log(`Resources used: ${result.resourcesUsed || 0}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     clearInterval(resourceMonitor);
     const duration = Date.now() - startTime;
 
-    if (error.message === 'Resource limit exceeded') {
-      console.log(`\n📊 Cancelled due to resource limit after ${(duration / 1000).toFixed(2)}s`);
-    } else if (error.name === 'AbortError' || error.message === 'Aborted') {
+    if (
+      error instanceof Error &&
+      (error.message === 'Resource limit exceeded' ||
+        error.name === 'AbortError' ||
+        error.message === 'Aborted')
+    ) {
       console.log(`\n📊 Cancelled due to resource limit after ${(duration / 1000).toFixed(2)}s`);
     } else {
       console.error('\n❌ Unexpected error:', error);
@@ -498,9 +502,9 @@ async function example6_resourceBasedCancellation() {
  * Shows timeout works with streaming too
  */
 async function example7_streamingWithTimeout() {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📋 EXAMPLE 7: Streaming with Timeout');
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   const graph = createProcessingGraph();
   const threadId = `streaming-timeout-${Date.now()}`;
@@ -528,13 +532,12 @@ async function example7_streamingWithTimeout() {
     }
 
     console.log('\n✨ Stream completed successfully');
-  } catch (error: any) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime;
 
     if (
-      error.name === 'TimeoutError' ||
-      error.name === 'AbortError' ||
-      error.message === 'Aborted'
+      error instanceof Error &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError' || error.message === 'Aborted')
     ) {
       console.log(`\n⏱️  Stream timed out after ${(duration / 1000).toFixed(2)}s`);
     } else {
@@ -566,7 +569,9 @@ class TimeoutManager {
     if (timeoutMs > 0) {
       timeoutId = setTimeout(() => {
         controller.abort(new Error('Timeout'));
-        if (onTimeout) onTimeout();
+        if (onTimeout) {
+          onTimeout();
+        }
       }, timeoutMs);
     }
 
@@ -600,7 +605,9 @@ class TimeoutManager {
   private cleanup(operationId: string) {
     const operation = this.activeOperations.get(operationId);
     if (operation) {
-      if (operation.timeout) clearTimeout(operation.timeout);
+      if (operation.timeout) {
+        clearTimeout(operation.timeout);
+      }
       this.activeOperations.delete(operationId);
     }
   }
@@ -610,9 +617,9 @@ class TimeoutManager {
  * EXAMPLE 8: Using the TimeoutManager utility
  */
 async function example8_timeoutManager() {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('📋 EXAMPLE 8: TimeoutManager Utility Class');
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   const graph = createProcessingGraph();
   const manager = new TimeoutManager();
@@ -623,7 +630,7 @@ async function example8_timeoutManager() {
   try {
     await manager.runWithTimeout(
       async (signal) => {
-        return await graph.invoke(
+        return graph.invoke(
           { messages: [new HumanMessage('Start processing')] },
           {
             configurable: { thread_id: `manager-${Date.now()}` },
@@ -639,8 +646,11 @@ async function example8_timeoutManager() {
     );
 
     console.log('\n✨ Operation completed successfully');
-  } catch (error: any) {
-    if (error.message === 'Timeout' || error.name === 'AbortError' || error.message === 'Aborted') {
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      (error.message === 'Timeout' || error.name === 'AbortError' || error.message === 'Aborted')
+    ) {
       console.log('\n⏱️  Handled by TimeoutManager');
     } else {
       console.error('\n❌ Unexpected error:', error);
@@ -672,7 +682,7 @@ async function runAllExamples() {
   await example7_streamingWithTimeout();
   await example8_timeoutManager();
 
-  console.log('\n' + '='.repeat(70));
+  console.log(`\n${'='.repeat(70)}`);
   console.log('✨ ALL EXAMPLES COMPLETE');
   console.log('='.repeat(70));
   console.log('\n💡 KEY TAKEAWAYS:');
@@ -683,7 +693,7 @@ async function runAllExamples() {
   console.log('5. Always clean up timeouts and event listeners');
   console.log('6. Consider progressive timeouts for unreliable operations');
   console.log('7. AbortSignal.any() combines multiple signals effectively');
-  console.log('='.repeat(70) + '\n');
+  console.log(`${'='.repeat(70)}\n`);
 
   // Give some time for any lingering async operations to complete
   await new Promise((resolve) => setTimeout(resolve, 1000));

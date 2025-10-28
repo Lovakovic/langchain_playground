@@ -27,9 +27,43 @@ import { HumanMessage } from '@langchain/core/messages';
 import { Pool } from 'pg';
 import * as readline from 'readline';
 import dotenv from 'dotenv';
-import { ResearchMetadata, ResearchStatus, SearchResult, Source } from './types';
+import type { ResearchMetadata, ResearchStatus, SearchResult, Source } from './types';
 
 dotenv.config();
+
+/**
+ * Tavily Search API Response Interfaces
+ */
+interface TavilySearchResultItem {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+}
+
+interface TavilySearchResponse {
+  results: TavilySearchResultItem[];
+}
+
+/**
+ * Checkpoint Tuple Interface for PostgreSQL checkpointer
+ */
+interface CheckpointTuple {
+  checkpoint?: {
+    channel_values?: {
+      topic?: string;
+      status?: ResearchStatus;
+      totalCost?: number;
+      metadata?: ResearchMetadata;
+    };
+    ts?: string;
+  };
+  config?: {
+    configurable?: {
+      thread_id?: string;
+    };
+  };
+}
 
 /**
  * State Definition
@@ -163,7 +197,7 @@ async function initialSearchNode(state: typeof ResearchState.State) {
     // TavilySearch returns an object with results array
     const parsedResults =
       results && typeof results === 'object' && 'results' in results
-        ? (results.results as any[]).map((r: any) => ({
+        ? (results as TavilySearchResponse).results.map((r: TavilySearchResultItem) => ({
             title: r.title || 'Untitled',
             url: r.url || '',
             content: r.content || '',
@@ -221,7 +255,7 @@ async function deepDiveSearchNode(state: typeof ResearchState.State) {
       // TavilySearch returns an object with results array
       const parsedResults =
         results && typeof results === 'object' && 'results' in results
-          ? (results.results as any[]).map((r: any) => ({
+          ? (results as TavilySearchResponse).results.map((r: TavilySearchResultItem) => ({
               title: r.title || 'Untitled',
               url: r.url || '',
               content: r.content || '',
@@ -276,7 +310,7 @@ async function analyzeSourcesNode(state: typeof ResearchState.State) {
           title: result.title,
           url: result.url,
           relevanceScore: result.score,
-          summary: result.content.substring(0, 200) + '...',
+          summary: `${result.content.substring(0, 200)}...`,
           searchQuery: search.query,
         });
       }
@@ -401,7 +435,7 @@ async function refineResearchNode(state: typeof ResearchState.State) {
     // TavilySearch returns an object with results array
     const parsedResults =
       results && typeof results === 'object' && 'results' in results
-        ? (results.results as any[]).map((r: any) => ({
+        ? (results as TavilySearchResponse).results.map((r: TavilySearchResultItem) => ({
             title: r.title || 'Untitled',
             url: r.url || '',
             content: r.content || '',
@@ -425,7 +459,7 @@ async function refineResearchNode(state: typeof ResearchState.State) {
       title: r.title,
       url: r.url,
       relevanceScore: r.score,
-      summary: r.content.substring(0, 200) + '...',
+      summary: `${r.content.substring(0, 200)}...`,
       searchQuery: searchResult.query,
     }));
 
@@ -479,7 +513,7 @@ Provide a comprehensive final report.`;
   console.log('✅ Research complete!');
   console.log('\n=== FINAL REPORT ===');
   console.log(finalReport);
-  console.log('\n💰 Total cost: $' + state.totalCost.toFixed(2));
+  console.log(`\n💰 Total cost: $${state.totalCost.toFixed(2)}`);
   console.log(`📍 Total checkpoints: ${state.metadata.checkpointCount + 1}`);
 
   return {
@@ -539,7 +573,7 @@ function buildResearchWorkflow() {
 }
 
 // Helper to format checkpoint info
-function formatCheckpoint(checkpointTuple: any, index: number) {
+function formatCheckpoint(checkpointTuple: CheckpointTuple, index: number): string {
   const state = checkpointTuple.checkpoint?.channel_values || {};
   const createdAt = checkpointTuple.checkpoint?.ts || 'Unknown';
 
@@ -557,7 +591,7 @@ function formatCheckpoint(checkpointTuple: any, index: number) {
     } else if (diffHours < 24) {
       formattedTime = `${diffHours} hours ago`;
     } else {
-      formattedTime = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      formattedTime = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
     }
   } catch (e) {
     // Keep original if parsing fails
@@ -668,7 +702,7 @@ async function main() {
         // We're paused at human_feedback node
         console.log('\n=== RESEARCH SUMMARY ===');
         console.log(currentState.values.summary);
-        console.log('\n💰 Total cost so far: $' + currentState.values.totalCost.toFixed(2));
+        console.log(`\n💰 Total cost so far: $${currentState.values.totalCost.toFixed(2)}`);
         console.log(`📊 Searches performed: ${currentState.values.searchCount}`);
         console.log(`📍 Checkpoints saved: ${currentState.values.metadata.checkpointCount}`);
 
@@ -706,7 +740,7 @@ async function main() {
       }
 
       // Group by thread ID and get only the latest checkpoint per thread
-      const threadMap = new Map<string, any>();
+      const threadMap = new Map<string, CheckpointTuple>();
       for (const checkpoint of allCheckpoints) {
         const threadId = checkpoint.config?.configurable?.['thread_id'];
         if (threadId && !threadMap.has(threadId)) {
@@ -726,7 +760,18 @@ async function main() {
 
       if (index >= 0 && index < uniqueThreads.length) {
         const thread = uniqueThreads[index];
-        const threadId = thread.config.configurable?.['thread_id'];
+
+        if (!thread) {
+          console.log('Error: Thread not found');
+          continue;
+        }
+
+        const threadId = thread.config?.configurable?.['thread_id'];
+
+        if (!threadId) {
+          console.log('Error: Thread ID not found');
+          continue;
+        }
 
         // Get current state
         const currentState = await graph.getState({
@@ -762,7 +807,7 @@ async function main() {
           // Graph is paused at human_feedback node
           console.log('\n=== RESEARCH SUMMARY ===');
           console.log(currentState.values.summary);
-          console.log('\n💰 Total cost so far: $' + currentState.values.totalCost.toFixed(2));
+          console.log(`\n💰 Total cost so far: $${currentState.values.totalCost.toFixed(2)}`);
           console.log(`📊 Searches performed: ${currentState.values.searchCount}`);
           console.log(`📍 Checkpoints saved: ${currentState.values.metadata.checkpointCount}`);
 
@@ -815,7 +860,7 @@ async function main() {
         console.log('No sessions found.');
       } else {
         // Group by thread ID
-        const threadGroups = new Map<string, any[]>();
+        const threadGroups = new Map<string, CheckpointTuple[]>();
         for (const checkpoint of allCheckpoints) {
           const threadId = checkpoint.config?.configurable?.['thread_id'];
           if (threadId) {
@@ -830,6 +875,11 @@ async function main() {
         let sessionIndex = 0;
         for (const [threadId, checkpoints] of threadGroups) {
           const latestCheckpoint = checkpoints[0]; // First is most recent
+
+          if (!latestCheckpoint) {
+            continue;
+          }
+
           console.log(`\n${sessionIndex + 1}. Thread: ${threadId}`);
           console.log(
             `   Topic: "${latestCheckpoint.checkpoint?.channel_values?.topic || 'Unknown'}"`,

@@ -1,28 +1,62 @@
 import { config } from 'dotenv';
-import { DocumentProcessorServiceClient, protos } from '@google-cloud/documentai';
+import type { protos } from '@google-cloud/documentai';
+import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, type RGB } from 'pdf-lib';
 
 type IProcessRequest = protos.google.cloud.documentai.v1.IProcessRequest;
+type IVertex = protos.google.cloud.documentai.v1.IVertex;
+type INormalizedVertex = protos.google.cloud.documentai.v1.INormalizedVertex;
+type IBoundingPoly = protos.google.cloud.documentai.v1.IBoundingPoly;
+type ITextAnchor = protos.google.cloud.documentai.v1.Document.ITextAnchor;
+type ILayout = protos.google.cloud.documentai.v1.Document.Page.ILayout;
+type IDocument = protos.google.cloud.documentai.v1.IDocument;
+type IPage = protos.google.cloud.documentai.v1.Document.IPage;
+
+// Interfaces for elements with layout information
+interface LayoutElement {
+  layout?: ILayout | null;
+}
+
+interface TokenElement extends LayoutElement {
+  // Token-specific properties already in ILayout
+}
+
+interface ParagraphElement extends LayoutElement {
+  // Paragraph-specific properties already in ILayout
+}
+
+interface FormFieldElement {
+  fieldName?: ILayout | null;
+  fieldValue?: ILayout | null;
+}
+
+interface TableElement extends LayoutElement {
+  headerRows?: unknown[] | null;
+  bodyRows?: unknown[] | null;
+}
 
 /**
  * Extract bounding box information from a document element
  * @param element The element with potential bounding box data
  * @returns String representation of bounding box coordinates
  */
-function getBoundingBoxInfo(element: any): string {
-  if (!element) return 'No element';
-
-  // Check for bounding box in layout
-  if (element.layout?.boundingPoly) {
-    return formatBoundingBox(element.layout.boundingPoly);
+function getBoundingBoxInfo(element: LayoutElement | ILayout | null | undefined): string {
+  if (!element) {
+    return 'No element';
   }
 
-  // Check for direct bounding box
-  if (element.boundingPoly) {
+  // Check if element is directly an ILayout
+  if ('boundingPoly' in element && element.boundingPoly) {
     return formatBoundingBox(element.boundingPoly);
+  }
+
+  // Check for bounding box in layout property (for LayoutElement)
+  const layoutElement = element as LayoutElement;
+  if (layoutElement.layout?.boundingPoly) {
+    return formatBoundingBox(layoutElement.layout.boundingPoly);
   }
 
   return 'No bounding box data';
@@ -33,21 +67,27 @@ function getBoundingBoxInfo(element: any): string {
  * @param boundingPoly The bounding polygon object
  * @returns Formatted string with coordinates
  */
-function formatBoundingBox(boundingPoly: any): string {
-  if (!boundingPoly) return 'No bounding box';
+function formatBoundingBox(boundingPoly: IBoundingPoly | null | undefined): string {
+  if (!boundingPoly) {
+    return 'No bounding box';
+  }
 
   let result = '';
 
   if (boundingPoly.vertices && boundingPoly.vertices.length > 0) {
-    const vertices = boundingPoly.vertices.map((v: any) => `(${v.x || 0}, ${v.y || 0})`).join(', ');
+    const vertices = boundingPoly.vertices
+      .map((v: IVertex) => `(${v.x || 0}, ${v.y || 0})`)
+      .join(', ');
     result += `Vertices: ${vertices}`;
   }
 
   if (boundingPoly.normalizedVertices && boundingPoly.normalizedVertices.length > 0) {
     const vertices = boundingPoly.normalizedVertices
-      .map((v: any) => `(${(v.x || 0).toFixed(3)}, ${(v.y || 0).toFixed(3)})`)
+      .map((v: INormalizedVertex) => `(${(v.x || 0).toFixed(3)}, ${(v.y || 0).toFixed(3)})`)
       .join(', ');
-    if (result) result += ' | ';
+    if (result) {
+      result += ' | ';
+    }
     result += `Normalized: ${vertices}`;
   }
 
@@ -60,12 +100,14 @@ function formatBoundingBox(boundingPoly: any): string {
  * @param textAnchor The text anchor object
  * @returns Extracted text
  */
-function getTextFromAnchor(fullText: string, textAnchor: any): string {
-  if (!textAnchor?.textSegments?.[0]) return '';
+function getTextFromAnchor(fullText: string, textAnchor: ITextAnchor | null | undefined): string {
+  if (!textAnchor?.textSegments?.[0]) {
+    return '';
+  }
 
   const segment = textAnchor.textSegments[0];
-  const start = parseInt(segment.startIndex || '0');
-  const end = parseInt(segment.endIndex || '0');
+  const start = parseInt(String(segment.startIndex || '0'));
+  const end = parseInt(String(segment.endIndex || '0'));
 
   return fullText.substring(start, end);
 }
@@ -82,11 +124,10 @@ interface TextElement {
  * @param fullText The full text of the document.
  * @returns A string with the reconstructed text for the page.
  */
-function reconstructTextWithLayout(
-  page: protos.google.cloud.documentai.v1.Document.IPage,
-  fullText: string,
-): string {
-  if (!page.lines) return '';
+function reconstructTextWithLayout(page: IPage, fullText: string): string {
+  if (!page.lines) {
+    return '';
+  }
 
   const lines: TextElement[] = page.lines.map((line) => ({
     text: getTextFromAnchor(fullText, line.layout?.textAnchor),
@@ -117,8 +158,10 @@ function reconstructTextWithLayout(
  * Saves the reconstructed text to a file.
  * @param document The Document AI document object.
  */
-function saveReconstructedText(document: protos.google.cloud.documentai.v1.IDocument) {
-  if (!document.pages) return;
+function saveReconstructedText(document: IDocument): void {
+  if (!document.pages) {
+    return;
+  }
 
   let fullReconstructedText = '';
   const fullText = document.text || '';
@@ -346,10 +389,10 @@ class DocumentAIOCRProcessor {
 
       // Generate annotated PDF with bounding boxes
       await this.createAnnotatedPDF(filePath, document);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('💥 OCR processing error occurred:');
-      if (error.details) {
-        console.error('🔍 gRPC Error Details:', error.details);
+      if (error instanceof Error && 'details' in error) {
+        console.error('🔍 gRPC Error Details:', (error as Error & { details: string }).details);
       } else {
         console.error(error);
       }
@@ -360,7 +403,7 @@ class DocumentAIOCRProcessor {
   /**
    * Create an annotated PDF with bounding boxes overlaid on the original document
    */
-  async createAnnotatedPDF(originalPdfPath: string, document: any): Promise<void> {
+  async createAnnotatedPDF(originalPdfPath: string, document: IDocument): Promise<void> {
     try {
       console.log('\n🎨 Creating annotated PDF with bounding boxes...');
 
@@ -385,14 +428,19 @@ class DocumentAIOCRProcessor {
       };
 
       // Process each page
-      document.pages.forEach((docPage: any, pageIndex: number) => {
+      document.pages.forEach((docPage: IPage, pageIndex: number) => {
         if (pageIndex >= pages.length) {
           console.log(`⚠️  Skipping page ${pageIndex + 1} - not found in PDF`);
           return;
         }
 
         const pdfPage = pages[pageIndex];
-        const { width: pageWidth, height: pageHeight } = pdfPage!.getSize();
+        if (!pdfPage) {
+          console.log(`⚠️  Skipping page ${pageIndex + 1} - page not found in PDF array`);
+          return;
+        }
+
+        const { width: pageWidth, height: pageHeight } = pdfPage.getSize();
 
         console.log(`📄 Annotating page ${pageIndex + 1} (${pageWidth}x${pageHeight})`);
 
@@ -401,7 +449,7 @@ class DocumentAIOCRProcessor {
         // Draw bounding boxes for different element types
         // Note: We'll draw tokens (words) as they're the most granular and useful
         if (docPage.tokens && docPage.tokens.length > 0) {
-          docPage.tokens.forEach((token: any) => {
+          docPage.tokens.forEach((token: TokenElement) => {
             if (token.layout?.boundingPoly?.normalizedVertices) {
               this.drawBoundingBox(
                 pdfPage,
@@ -418,7 +466,7 @@ class DocumentAIOCRProcessor {
 
         // Draw paragraph boundaries (thicker lines)
         if (docPage.paragraphs && docPage.paragraphs.length > 0) {
-          docPage.paragraphs.forEach((paragraph: any) => {
+          docPage.paragraphs.forEach((paragraph: ParagraphElement) => {
             if (paragraph.layout?.boundingPoly?.normalizedVertices) {
               this.drawBoundingBox(
                 pdfPage,
@@ -434,21 +482,23 @@ class DocumentAIOCRProcessor {
 
         // Draw form field boundaries (if any)
         if (docPage.formFields && docPage.formFields.length > 0) {
-          docPage.formFields.forEach((field: any) => {
-            if (field.fieldName?.boundingPoly?.normalizedVertices) {
+          docPage.formFields.forEach((field: FormFieldElement) => {
+            const fieldNameLayout = field.fieldName;
+            if (fieldNameLayout?.boundingPoly?.normalizedVertices) {
               this.drawBoundingBox(
                 pdfPage,
-                field.fieldName.boundingPoly.normalizedVertices,
+                fieldNameLayout.boundingPoly.normalizedVertices,
                 pageWidth,
                 pageHeight,
                 colors.formField,
                 2.0,
               );
             }
-            if (field.fieldValue?.boundingPoly?.normalizedVertices) {
+            const fieldValueLayout = field.fieldValue;
+            if (fieldValueLayout?.boundingPoly?.normalizedVertices) {
               this.drawBoundingBox(
                 pdfPage,
-                field.fieldValue.boundingPoly.normalizedVertices,
+                fieldValueLayout.boundingPoly.normalizedVertices,
                 pageWidth,
                 pageHeight,
                 colors.formField,
@@ -460,7 +510,7 @@ class DocumentAIOCRProcessor {
 
         // Draw table boundaries (if any)
         if (docPage.tables && docPage.tables.length > 0) {
-          docPage.tables.forEach((table: any) => {
+          docPage.tables.forEach((table: TableElement) => {
             if (table.layout?.boundingPoly?.normalizedVertices) {
               this.drawBoundingBox(
                 pdfPage,
@@ -498,14 +548,16 @@ class DocumentAIOCRProcessor {
    * Draw a bounding box on a PDF page using normalized coordinates
    */
   private drawBoundingBox(
-    page: any,
-    normalizedVertices: any[],
+    page: ReturnType<PDFDocument['getPages']>[number],
+    normalizedVertices: INormalizedVertex[],
     pageWidth: number,
     pageHeight: number,
-    color: any,
+    color: RGB,
     lineWidth: number,
   ): void {
-    if (normalizedVertices.length < 4) return;
+    if (normalizedVertices.length < 4) {
+      return;
+    }
 
     try {
       // Convert normalized coordinates (0-1) to PDF coordinates
@@ -523,14 +575,16 @@ class DocumentAIOCRProcessor {
       const height = ((bottomRight.y || 0) - (topLeft.y || 0)) * pageHeight;
 
       // Ensure positive dimensions
-      if (width <= 0 || height <= 0) return;
+      if (width <= 0 || height <= 0) {
+        return;
+      }
 
       // Draw the bounding box as a rectangle
       page.drawRectangle({
-        x: x,
-        y: y,
-        width: width,
-        height: height,
+        x,
+        y,
+        width,
+        height,
         borderColor: color,
         borderWidth: lineWidth,
         opacity: 0.8,

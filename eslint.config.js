@@ -107,12 +107,7 @@ export default [
       'object-shorthand': ['warn', 'always'],
       'prefer-arrow-callback': 'warn',
       'prefer-template': 'warn',
-      'no-console': [
-        'warn',
-        {
-          allow: ['warn', 'error', 'info', 'debug'],
-        },
-      ],
+      'no-console': 'off', // Examples use console.log freely
 
       // ====== RELAXED/REMOVED - TOO STRICT ======
       // Disabled overly strict rules

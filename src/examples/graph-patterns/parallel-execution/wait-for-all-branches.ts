@@ -57,17 +57,30 @@
  * ```
  */
 
-import {
-  Annotation,
-  CompiledStateGraph,
-  MemorySaver,
-  StateDefinition,
-  StateGraph,
-} from '@langchain/langgraph';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import type { CompiledStateGraph, StateDefinition } from '@langchain/langgraph';
+import { Annotation, MemorySaver, StateGraph } from '@langchain/langgraph';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+/**
+ * Data structure interfaces
+ */
+interface TransformedData {
+  userId: string;
+  transactionId: string;
+  amount: number;
+  items: string[];
+  processed: boolean;
+}
+
+interface ApiResponse {
+  status?: string;
+  data?: string;
+  extra?: string;
+}
 
 /**
  * State Definition
@@ -77,7 +90,7 @@ dotenv.config();
  */
 const PipelineState = Annotation.Root({
   // Input data
-  inputData: Annotation<Record<string, any>>,
+  inputData: Annotation<Record<string, unknown>>,
 
   // Messages with reducer
   messages: Annotation<BaseMessage[]>({
@@ -118,7 +131,7 @@ const PipelineState = Annotation.Root({
   }>,
 
   dataProcessingResult: Annotation<{
-    transformedData: any;
+    transformedData: TransformedData;
     processingSteps: string[];
     completedAt: string;
   }>,
@@ -132,7 +145,7 @@ const PipelineState = Annotation.Root({
 
   externalIntegrationResult: Annotation<{
     apiCalls: string[];
-    responses: any[];
+    responses: ApiResponse[];
     completedAt: string;
   }>,
 
@@ -179,7 +192,7 @@ async function startPipeline(_state: typeof PipelineState.State) {
   const externalSteps = 3;
 
   console.log('\n🚀 STARTING PARALLEL PIPELINE WITH WAIT-FOR-ALL AGGREGATION');
-  console.log('=' + '='.repeat(60));
+  console.log(`=${'='.repeat(60)}`);
   console.log('📋 Configuration:');
   console.log(`- Quick Validation: 1 node`);
   console.log(`- Data Processing: 3 nodes`);
@@ -187,7 +200,7 @@ async function startPipeline(_state: typeof PipelineState.State) {
   console.log(`- External Integration: ${externalSteps} nodes`);
   console.log('\n✨ SPECIAL BEHAVIOR: The aggregation node will wait for ALL branches!');
   console.log('It will execute ONLY ONCE after all 4 branches complete.');
-  console.log('=' + '='.repeat(60) + '\n');
+  console.log(`=${'='.repeat(60)}\n`);
 
   return {
     inputData,
@@ -208,7 +221,8 @@ async function quickValidate(state: typeof PipelineState.State) {
   await new Promise((resolve) => setTimeout(resolve, 300));
 
   const issues: string[] = [];
-  if (state.inputData['amount'] > 1000) {
+  const amount = state.inputData['amount'] as number;
+  if (amount > 1000) {
     issues.push('High value transaction');
   }
 
@@ -263,7 +277,7 @@ async function processStep3(state: typeof PipelineState.State) {
 
   return {
     dataProcessingResult: {
-      transformedData: { ...state.inputData, processed: true },
+      transformedData: { ...state.inputData, processed: true } as TransformedData,
       processingSteps: ['normalize', 'transform', 'finalize'],
       completedAt: new Date().toISOString(),
     },
@@ -397,7 +411,7 @@ async function aggregateResults(state: typeof PipelineState.State) {
   const currentExecution = state.aggregationCount + 1;
   const totalTime = Date.now() - state.startTime;
 
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log(`🎯 AGGREGATION NODE EXECUTION (SINGLE EXECUTION!)`);
   console.log('='.repeat(60));
   console.log(`⏱️  Time since start: ${(totalTime / 1000).toFixed(2)}s`);
@@ -439,7 +453,7 @@ before executing ONCE with all results available!
 `;
 
   console.log(summary);
-  console.log('='.repeat(60) + '\n');
+  console.log(`${'='.repeat(60)}\n`);
 
   return {
     aggregationCount: 1,
@@ -575,7 +589,7 @@ async function runDemo() {
       },
     );
 
-    console.log('\n' + '='.repeat(70));
+    console.log(`\n${'='.repeat(70)}`);
     console.log('✨ DEMONSTRATION COMPLETE');
     console.log('='.repeat(70));
     console.log('\n📊 RESULTS:');

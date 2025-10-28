@@ -29,6 +29,47 @@ export enum ProcessingPhase {
 }
 
 /**
+ * Event Metadata Interface
+ *
+ * Uses an index signature to allow flexible metadata while maintaining type safety.
+ * Common metadata patterns include tool names, node IDs, performance metrics, etc.
+ */
+export interface EventMetadata {
+  // Tool-related metadata
+  toolName?: string;
+  toolArgs?: Record<string, unknown>;
+  toolOutput?: Record<string, unknown>;
+  toolCallId?: string;
+
+  // LLM-related metadata
+  modelName?: string;
+  tokenUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  responseTime?: number;
+
+  // Phase/Node-related metadata
+  nodeId?: string;
+  currentNode?: string;
+  masterGraphNode?: string;
+  subgraphNode?: string;
+  duration?: number;
+  error?: string;
+
+  // Event-related metadata
+  eventName?: string;
+  eventData?: unknown;
+
+  // Performance metrics
+  performanceMetrics?: Record<string, unknown>;
+
+  // Allow additional flexible properties
+  [key: string]: unknown;
+}
+
+/**
  * Event types for our tracer
  *
  * This interface defines the structure of events that the NestedTracer emits.
@@ -41,7 +82,7 @@ export interface ProcessingEvent {
   type: 'phase:start' | 'phase:end' | 'phase:error' | 'tool:end' | 'llm:end' | 'custom:event';
   phase: ProcessingPhase; // Which business phase this event belongs to
   message: string; // Human-readable description of the event
-  metadata?: Record<string, any>; // Additional context data (tool args, token usage, etc.)
+  metadata?: EventMetadata; // Additional context data (tool args, token usage, etc.)
 }
 
 /**
@@ -119,11 +160,15 @@ export interface PerformanceEventData {
   cacheHitRate?: number;
 }
 
+export interface StateData {
+  [key: string]: string | number | boolean | string[] | Record<string, unknown> | null | undefined;
+}
+
 export interface StateTransitionEventData {
   fromPhase: ProcessingPhase | string;
   toPhase: ProcessingPhase | string;
   trigger: string;
-  stateData?: Record<string, any>;
+  stateData?: StateData;
 }
 
 /**

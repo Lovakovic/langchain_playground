@@ -1,12 +1,13 @@
-import { BaseMessage, ToolMessage } from '@langchain/core/messages';
-import { RunnableConfig } from '@langchain/core/runnables';
-import { DynamicStructuredTool } from '@langchain/core/tools';
+import type { BaseMessage } from '@langchain/core/messages';
+import { ToolMessage } from '@langchain/core/messages';
+import type { RunnableConfig } from '@langchain/core/runnables';
+import type { DynamicStructuredTool } from '@langchain/core/tools';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 
 /**
  * Represents a single item in a batch that needs validation
  */
-export interface ValidationItem<T = any> {
+export interface ValidationItem<T = unknown> {
   id: string;
   data: T;
   status: 'pending' | 'valid' | 'invalid';
@@ -17,7 +18,7 @@ export interface ValidationItem<T = any> {
 /**
  * Result of a partial validation - indicates what succeeded and what needs retry
  */
-export interface PartialValidationResult<TInput = any, TOutput = any> {
+export interface PartialValidationResult<TInput = unknown, TOutput = unknown> {
   // Items that passed validation
   validItems: Array<{
     id: string;
@@ -37,13 +38,13 @@ export interface PartialValidationResult<TInput = any, TOutput = any> {
   isComplete: boolean;
 
   // Optional metadata about the validation
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
  * Generic validation state that accumulates results across attempts
  */
-export interface AccumulativeValidationState<TInput = any, TOutput = any> {
+export interface AccumulativeValidationState<TInput = unknown, TOutput = unknown> {
   // Current attempt number
   currentAttempt: number;
   maxAttempts: number;
@@ -79,7 +80,7 @@ export interface AccumulativeValidationState<TInput = any, TOutput = any> {
   }>;
 
   // Tool-specific metadata storage
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 
   // Hints that accumulate to help the LLM
   globalHints: string[];

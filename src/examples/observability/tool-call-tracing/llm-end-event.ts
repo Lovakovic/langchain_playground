@@ -6,17 +6,28 @@
  * to capture tool calls as soon as the LLM decides to use them.
  */
 
-import { BaseTracer, Run } from '@langchain/core/tracers/base';
+import type { Run } from '@langchain/core/tracers/base';
+import { BaseTracer } from '@langchain/core/tracers/base';
 import { StateGraph, MessagesAnnotation, Annotation } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import type { ToolCall } from '@langchain/core/messages/tool';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import * as util from 'util';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+/**
+ * Weather data structure for mock weather responses
+ */
+interface WeatherData {
+  temp: number;
+  conditions: string;
+  humidity: number;
+}
 
 /**
  * Tool Call Tracer that captures tool calls from onLLMEnd events
@@ -64,7 +75,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
     const message = run.outputs?.['generations']?.[0]?.[0]?.message;
 
     if (message?.tool_calls && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
-      console.log('\n' + '='.repeat(80));
+      console.log(`\n${'='.repeat(80)}`);
       console.log('🤖 LLM TOOL DECISION CAPTURED');
       console.log('='.repeat(80));
 
@@ -73,7 +84,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
       console.log(`LLM Model: ${run.name}`);
 
       // Display each tool call decision
-      message.tool_calls.forEach((toolCall: any, index: number) => {
+      message.tool_calls.forEach((toolCall: ToolCall, index: number) => {
         this.toolCallsFromLLM++;
 
         console.log(`\n📋 Tool Call #${index + 1}:`);
@@ -90,7 +101,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
         console.log(
           argsString
             .split('\n')
-            .map((line) => '      ' + line)
+            .map((line) => `      ${line}`)
             .join('\n'),
         );
       });
@@ -103,7 +114,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
         console.log(`   Total: ${message.usage_metadata.total_tokens}`);
       }
 
-      console.log('\n' + '='.repeat(80) + '\n');
+      console.log(`\n${'='.repeat(80)}\n`);
     }
   }
 
@@ -113,7 +124,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
   override onToolEnd(run: Run): void {
     this.toolExecutions++;
 
-    console.log('\n' + '-'.repeat(80));
+    console.log(`\n${'-'.repeat(80)}`);
     console.log('⚙️  TOOL EXECUTION COMPLETED');
     console.log('-'.repeat(80));
 
@@ -133,7 +144,7 @@ export class LLMEndToolCallTracer extends BaseTracer {
       }),
     );
 
-    console.log('\n' + '-'.repeat(80) + '\n');
+    console.log(`\n${'-'.repeat(80)}\n`);
   }
 
   getSummary() {
@@ -184,7 +195,7 @@ const weatherTool = tool(
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     // Simulate weather data
-    const weatherData: Record<string, any> = {
+    const weatherData: Record<string, WeatherData> = {
       Tokyo: { temp: 72, conditions: 'Sunny', humidity: 45 },
       London: { temp: 55, conditions: 'Rainy', humidity: 80 },
       'New York': { temp: 68, conditions: 'Cloudy', humidity: 60 },
@@ -377,7 +388,7 @@ function createLLMGraph() {
 // Main execution
 async function main() {
   console.log('🔍 Tool Call Tracing from onLLMEnd Events');
-  console.log('=' + '='.repeat(79));
+  console.log(`=${'='.repeat(79)}`);
   console.log('\nThis example shows how to capture tool calls from LLM responses');
   console.log('before they are executed, using the onLLMEnd event.\n');
 

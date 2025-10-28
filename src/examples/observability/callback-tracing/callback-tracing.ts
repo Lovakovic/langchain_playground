@@ -38,6 +38,7 @@ import { z } from 'zod';
 import { tool } from '@langchain/core/tools';
 import { HumanMessage } from '@langchain/core/messages';
 import { MemorySaver, MessagesAnnotation, StateGraph } from '@langchain/langgraph';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 import { FileCallbackHandler } from './FileCallbackHandler';
@@ -164,7 +165,7 @@ function shouldContinue(state: typeof MessagesAnnotation.State) {
  *
  * The graph name comes from the compiled graph class: "LangGraph"
  */
-async function createReActAgent(checkpointer?: any) {
+async function createReActAgent(checkpointer?: BaseCheckpointSaver) {
   const workflow = new StateGraph(MessagesAnnotation)
     .addNode('agent', callModel) // This "agent" name appears in breadcrumbs
     .addNode('tools', new ToolNode([getWeatherTool, calculatorTool])) // This "tools" name appears
@@ -189,11 +190,11 @@ async function createReActAgent(checkpointer?: any) {
  * - The handler writes detailed logs while we show clean UI
  */
 async function runWithFileLogging(
-  agent: any,
+  agent: Awaited<ReturnType<typeof createReActAgent>>,
   input: HumanMessage,
   sessionId: string,
   fileHandler: FileCallbackHandler,
-) {
+): Promise<string> {
   console.log('\n🤔 Agent thinking...');
 
   // Pass callback handler here - it will be inherited by all child operations

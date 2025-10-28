@@ -8,7 +8,8 @@
  */
 
 import { Annotation, StateGraph } from '@langchain/langgraph';
-import { AIMessage, BaseMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import { AIMessage } from '@langchain/core/messages';
 import dotenv from 'dotenv';
 import { randomBytes } from 'crypto';
 
@@ -91,7 +92,7 @@ async function unmanagedPipeline() {
   logMemoryUsage('After GC (data still referenced)');
 
   // Clear reference and GC again
-  state = null as any;
+  state = { allData: [], messages: [] };
   forceGC();
   logMemoryUsage('After clearing references and GC');
 }
@@ -99,8 +100,8 @@ async function unmanagedPipeline() {
 /**
  * SOLUTION 1: Window-Based Memory Management
  */
-const windowReducer = (windowSize: number) => {
-  return (current: any[], update: any[]) => {
+const windowReducer = <T>(windowSize: number) => {
+  return (current: T[], update: T[]): T[] => {
     const combined = current.concat(update);
     if (combined.length <= windowSize) {
       return combined;
@@ -113,7 +114,7 @@ const windowReducer = (windowSize: number) => {
 const WindowManagedState = Annotation.Root({
   // Keep only last N items
   recentData: Annotation<Buffer[]>({
-    reducer: windowReducer(2),
+    reducer: windowReducer<Buffer>(2),
     default: () => [],
   }),
 
@@ -129,7 +130,7 @@ const WindowManagedState = Annotation.Root({
   }),
 
   messages: Annotation<BaseMessage[]>({
-    reducer: windowReducer(3),
+    reducer: windowReducer<BaseMessage>(3),
     default: () => [],
   }),
 });
@@ -212,7 +213,9 @@ async function stageCleanupPipeline() {
 
     .addNode('process', async (state) => {
       console.log('\n🟢 Stage: Process');
-      if (!state.tempData) throw new Error('No data');
+      if (!state.tempData) {
+        throw new Error('No data');
+      }
 
       // Extract features (small data) from large data
       const features = Array(10)

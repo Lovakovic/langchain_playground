@@ -133,19 +133,27 @@ function calculateCost(tokenUsage: TokenUsage, pricing: ModelPricing): number {
   return inputCost + outputCost;
 }
 
-async function extractWithModel(
-  modelName: string,
-  model: any,
-  images: Buffer[],
-): Promise<{
+interface ExtractionResult {
+  items?: MenuItemInput[];
+  remarks?: string;
+  error?: string;
+}
+
+interface ModelExtractionResult {
   modelName: string;
-  result: any;
+  result: ExtractionResult;
   duration: number;
   tokenUsage: TokenUsage;
   cost?: number;
   startTime: number;
   endTime: number;
-}> {
+}
+
+async function extractWithModel(
+  modelName: string,
+  model: ChatVertexAI | ChatOpenAI,
+  images: Buffer[],
+): Promise<ModelExtractionResult> {
   const startTime = Date.now();
 
   const imageMessages = images.map((buffer) => ({
@@ -192,22 +200,24 @@ async function extractWithModel(
         totalTokens: response.usage_metadata.total_tokens,
       };
     } else if (response.response_metadata) {
-      const metadata = response.response_metadata;
+      const metadata = response.response_metadata as Record<string, unknown>;
 
       // OpenAI format
-      if (metadata.usage) {
+      if (metadata['usage']) {
+        const usage = metadata['usage'] as Record<string, unknown>;
         tokenUsage = {
-          inputTokens: metadata.usage.prompt_tokens,
-          outputTokens: metadata.usage.completion_tokens,
-          totalTokens: metadata.usage.total_tokens,
+          inputTokens: usage['prompt_tokens'] as number | undefined,
+          outputTokens: usage['completion_tokens'] as number | undefined,
+          totalTokens: usage['total_tokens'] as number | undefined,
         };
       }
       // Gemini format
-      else if (metadata.usage_metadata) {
+      else if (metadata['usage_metadata']) {
+        const usageMetadata = metadata['usage_metadata'] as Record<string, unknown>;
         tokenUsage = {
-          inputTokens: metadata.usage_metadata.input_tokens,
-          outputTokens: metadata.usage_metadata.output_tokens,
-          totalTokens: metadata.usage_metadata.total_tokens,
+          inputTokens: usageMetadata['input_tokens'] as number | undefined,
+          outputTokens: usageMetadata['output_tokens'] as number | undefined,
+          totalTokens: usageMetadata['total_tokens'] as number | undefined,
         };
       }
     }
@@ -221,7 +231,7 @@ async function extractWithModel(
 
     return {
       modelName,
-      result: toolCalls[0].args,
+      result: toolCalls[0]?.args as ExtractionResult,
       duration,
       tokenUsage,
       cost,
@@ -361,12 +371,22 @@ async function main() {
 
       if (result.result.items && result.result.items.length > 0) {
         console.log('\nFirst 3 items:');
-        result.result.items.slice(0, 3).forEach((item: any, idx: number) => {
+        result.result.items.slice(0, 3).forEach((item: MenuItemInput, idx: number) => {
           console.log(`\n${idx + 1}. ${item.originalName}`);
-          if (item.englishName) console.log(`   English: ${item.englishName}`);
-          if (item.description) console.log(`   Description: ${item.description}`);
+          if (item.englishName) {
+            console.log(`   English: ${item.englishName}`);
+          }
+          if (item.description) {
+            console.log(`   Description: ${item.description}`);
+          }
           console.log(`   Price: ${item.price} ${item.currency || 'EUR'}`);
-          if (item.metadata?.section) console.log(`   Section: ${item.metadata.section}`);
+          const metadataSection =
+            item.metadata && typeof item.metadata === 'object' && 'section' in item.metadata
+              ? item.metadata['section']
+              : undefined;
+          if (metadataSection) {
+            console.log(`   Section: ${metadataSection}`);
+          }
         });
       }
     }
@@ -385,7 +405,7 @@ async function main() {
       console.log(`\nResults saved to: ${filename}`);
     }
 
-    console.log('\n' + '='.repeat(70) + '\n');
+    console.log(`\n${'='.repeat(70)}\n`);
   }
 
   console.log(`\n\n=== COST SUMMARY ===`);

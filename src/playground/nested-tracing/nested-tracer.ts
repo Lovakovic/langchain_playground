@@ -1,7 +1,18 @@
-import { BaseTracer, Run } from '@langchain/core/tracers/base';
-import { EventEmitter } from 'events';
-import { ProcessingPhase, ProcessingEvent } from './types';
-import { AIMessage, ToolCall } from '@langchain/core/messages';
+import type { Run } from '@langchain/core/tracers/base';
+import { BaseTracer } from '@langchain/core/tracers/base';
+import type { EventEmitter } from 'events';
+import type { ProcessingEvent } from './types';
+import { ProcessingPhase } from './types';
+import type { AIMessage, ToolCall } from '@langchain/core/messages';
+
+/**
+ * Interface for serialized LLM configuration
+ */
+interface SerializedLLM {
+  kwargs?: {
+    model?: string;
+  };
+}
 
 /**
  * Node to phase mapping - Maps LangGraph node names to processing phases
@@ -173,7 +184,9 @@ export class NestedTracer extends BaseTracer {
    * This traverses up the parent chain to find the immediate parent graph node.
    */
   private getParentNodeName(run: Run): string | undefined {
-    if (!run.parent_run_id) return undefined;
+    if (!run.parent_run_id) {
+      return undefined;
+    }
 
     const parentRun = this.runMap.get(run.parent_run_id);
     if (parentRun && this.isGraphNode(parentRun.name)) {
@@ -285,10 +298,10 @@ export class NestedTracer extends BaseTracer {
    */
   override async handleCustomEvent(
     eventName: string,
-    data: any,
+    data: unknown,
     runId: string,
     tags?: string[],
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     // Get the run that dispatched this custom event
     const run = this.runMap.get(runId);
@@ -372,7 +385,7 @@ export class NestedTracer extends BaseTracer {
       this.emit(
         {
           phase: phaseInfo.phase,
-          message: message,
+          message,
           metadata: {
             duration,
             level: this.getGraphLevel(run),
@@ -422,7 +435,7 @@ export class NestedTracer extends BaseTracer {
    * We capture the model name for later attribution.
    */
   override onLLMStart(run: Run): void {
-    const serialized = run.serialized as any;
+    const serialized = run.serialized as SerializedLLM;
     if (serialized?.kwargs?.model) {
       run.extra = { ...run.extra, modelName: serialized.kwargs.model };
     }
@@ -661,7 +674,10 @@ export class NestedTracer extends BaseTracer {
     // Analyze custom events by name
     const customEventsByName = customEvents.reduce(
       (acc, event) => {
-        const eventName = event.metadata?.['eventName'] || 'unknown';
+        const eventName =
+          typeof event.metadata?.['eventName'] === 'string'
+            ? event.metadata['eventName']
+            : 'unknown';
         acc[eventName] = (acc[eventName] || 0) + 1;
         return acc;
       },

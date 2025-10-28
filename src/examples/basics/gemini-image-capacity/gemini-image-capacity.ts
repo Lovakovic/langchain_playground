@@ -1,8 +1,14 @@
 import dotenv from 'dotenv';
+import type { MessageContentText, MessageContentImageUrl } from '@langchain/core/messages';
 import { HumanMessage } from '@langchain/core/messages';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 
 dotenv.config();
+
+/**
+ * Type Definitions
+ */
+type MessageContent = MessageContentText | MessageContentImageUrl;
 
 async function fetchCatImage(): Promise<string> {
   const response = await fetch('https://api.thecatapi.com/v1/images/search');
@@ -47,7 +53,7 @@ async function testGeminiWithMultipleImages() {
     console.log(`✓ Successfully fetched ${NUMBER_OF_IMAGES} images\n`);
 
     // Create message content with multiple images
-    const content: any[] = [
+    const content: MessageContent[] = [
       {
         type: 'text',
         text: `Please describe all ${NUMBER_OF_IMAGES} cat images I'm showing you. For each image, provide a numbered description (1, 2, 3, etc.).`,
@@ -82,9 +88,11 @@ async function testGeminiWithMultipleImages() {
     console.log(`Response length: ${response.content.toString().length} characters\n`);
     console.log("=== Gemini's Response ===\n");
     console.log(response.content.toString());
-  } catch (error: any) {
+  } catch (error) {
     console.log(`✗ Failed with ${NUMBER_OF_IMAGES} images!`);
-    console.log(`Error: ${error.message}\n`);
+    if (error instanceof Error) {
+      console.log(`Error: ${error.message}\n`);
+    }
     console.log('Full error details:', error);
   }
 }

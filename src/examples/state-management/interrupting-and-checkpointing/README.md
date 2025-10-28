@@ -1,9 +1,34 @@
-# PostgresSaver Example: Multi-Step Research Assistant with Interrupts
+# Human-in-the-Loop & Checkpointing Examples
 
-This example demonstrates how to use PostgreSQL for checkpointing in LangGraph,
-with a special focus on **properly implementing interrupt/resume patterns**. The
-research assistant performs multi-step web searches using Tavily API and
-showcases the non-obvious behavior of LangGraph interrupts.
+This directory contains comprehensive examples for Human-in-the-Loop (HITL)
+workflows and checkpointing in LangGraph.
+
+## Examples Overview
+
+### 1. interrupt-and-postgres-saver.ts - Production HITL
+
+Multi-step research assistant demonstrating **production implementation** with
+PostgreSQL checkpointing, real API integration, and session management.
+
+**Focus**: Production setup, real APIs, cost tracking, persistence
+
+### 2. advanced-hitl-patterns/ - Pattern Showcase
+
+Content publishing workflow demonstrating **advanced HITL patterns** including
+validation loops, tool call reviews, and multiple interrupt strategies.
+
+**Focus**: Pattern variety, techniques, best practices
+
+### 3. langgraph-js-human-in-the-loop-guide.md - Comprehensive Guide
+
+Complete reference documentation covering all HITL concepts, patterns, and APIs.
+
+---
+
+## PostgreSQL Research Assistant (interrupt-and-postgres-saver.ts)
+
+Production-ready example demonstrating PostgreSQL checkpointing with real API
+integration and proper interrupt/resume patterns.
 
 ## Features
 
@@ -211,3 +236,41 @@ If interrupts aren't working as expected:
 - Add export formats (JSON, Markdown, etc.)
 - Implement additional search providers
 - Add more sophisticated source ranking
+
+---
+
+## See Also
+
+### Advanced HITL Patterns Example
+
+For more HITL patterns not covered in this example, see
+[advanced-hitl-patterns/](./advanced-hitl-patterns/):
+
+- **Multiple sequential interrupts** across workflow
+- **Validation loops** (multiple interrupts in one node)
+- **Tool call review/edit/reject** patterns
+- **Command.update and Command.goto** routing
+- **stream() vs invoke()** comparison
+- **Side effect placement** best practices
+
+### Comprehensive HITL Guide
+
+See
+[langgraph-js-human-in-the-loop-guide.md](./langgraph-js-human-in-the-loop-guide.md)
+for complete API reference and pattern documentation.
+
+### When to Use Which Example
+
+| Need                                     | Use This Example | Use Advanced Patterns |
+| ---------------------------------------- | ---------------- | --------------------- |
+| Production PostgreSQL setup              | ✅               | ❌ (uses MemorySaver) |
+| Real API integration (Tavily, Vertex AI) | ✅               | ❌ (simulated)        |
+| Session management & recovery            | ✅               | ❌                    |
+| Cost tracking across sessions            | ✅               | ❌                    |
+| Multiple interrupt points                | ⚠️ (1 point)     | ✅ (3 points)         |
+| Validation loops                         | ❌               | ✅                    |
+| Tool call review patterns                | ❌               | ✅                    |
+| Command.goto routing                     | ⚠️ (limited)     | ✅ (extensive)        |
+| stream() usage                           | ❌               | ✅                    |
+
+**Recommendation**: Study both examples for complete HITL understanding.

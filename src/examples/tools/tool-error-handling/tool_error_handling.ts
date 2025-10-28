@@ -17,19 +17,15 @@
 
 import { z } from 'zod';
 import { tool } from '@langchain/core/tools';
-import { HumanMessage, BaseMessage, BaseMessageLike } from '@langchain/core/messages';
-import {
-  MemorySaver,
-  MessagesAnnotation,
-  StateGraph,
-  CompiledStateGraph,
-  StateDefinition,
-} from '@langchain/langgraph';
+import type { BaseMessage, BaseMessageLike } from '@langchain/core/messages';
+import { HumanMessage } from '@langchain/core/messages';
+import type { CompiledStateGraph, StateDefinition } from '@langchain/langgraph';
+import { MemorySaver, MessagesAnnotation, StateGraph } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import dotenv from 'dotenv';
 import { ChatVertexAI } from '@langchain/google-vertexai';
 import * as readline from 'readline';
-import { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 
 dotenv.config();
 
@@ -167,17 +163,37 @@ const passwordValidatorTool = tool(
 function calculatePasswordStrength(password: string): string {
   let score = 0;
 
-  if (password.length >= 12) score += 1;
-  if (password.length >= 16) score += 1;
-  if (/[a-z]/.test(password)) score += 1;
-  if (/[A-Z]/.test(password)) score += 1;
-  if (/[0-9]/.test(password)) score += 1;
-  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password)) score += 1;
-  if (password.length >= 20) score += 1;
+  if (password.length >= 12) {
+    score += 1;
+  }
+  if (password.length >= 16) {
+    score += 1;
+  }
+  if (/[a-z]/.test(password)) {
+    score += 1;
+  }
+  if (/[A-Z]/.test(password)) {
+    score += 1;
+  }
+  if (/[0-9]/.test(password)) {
+    score += 1;
+  }
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password)) {
+    score += 1;
+  }
+  if (password.length >= 20) {
+    score += 1;
+  }
 
-  if (score >= 6) return 'very strong';
-  if (score >= 5) return 'strong';
-  if (score >= 4) return 'good';
+  if (score >= 6) {
+    return 'very strong';
+  }
+  if (score >= 5) {
+    return 'strong';
+  }
+  if (score >= 4) {
+    return 'good';
+  }
   return 'weak';
 }
 

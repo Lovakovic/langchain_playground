@@ -2,14 +2,34 @@ import * as dotenv from 'dotenv';
 import { HumanMessage } from '@langchain/core/messages';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import {
-  executeModelWithToolValidation,
-  PartialValidationError,
-  ValidationConfigurable,
-} from './model-loop-util';
-import { RunnableConfig } from '@langchain/core/runnables';
+import type { ValidationConfigurable } from './model-loop-util';
+import { executeModelWithToolValidation, PartialValidationError } from './model-loop-util';
+import type { RunnableConfig } from '@langchain/core/runnables';
 
 dotenv.config();
+
+/**
+ * Validation Item Types
+ */
+interface UserData {
+  id: string;
+  name: string;
+  email: string;
+  age: number;
+}
+
+interface ValidatedItem {
+  id: string;
+  input: UserData;
+  output: UserData & { validated: boolean; validatedAt: number };
+}
+
+interface InvalidItem {
+  id: string;
+  input: UserData;
+  error: string;
+  suggestion?: string;
+}
 
 // Simulated tool that progressively accepts items based on attempt number
 // This simulates how an LLM might fix items progressively
@@ -47,13 +67,13 @@ const progressiveValidationTool = new DynamicStructuredTool({
     if (alreadyValidated.size > 0) {
       console.log('\n✅ Already validated and saved (NOT sent by LLM):');
       alreadyValidated.forEach((value, id) => {
-        const user = value.input as any;
+        const user = value.input as UserData;
         console.log(`  - ${id}: ${user.name} (validated in attempt #${value.validatedAt})`);
       });
     }
 
-    const validItems: Array<{ id: string; input: any; output: any }> = [];
-    const invalidItems: Array<{ id: string; input: any; error: string; suggestion?: string }> = [];
+    const validItems: ValidatedItem[] = [];
+    const invalidItems: InvalidItem[] = [];
 
     // Simulate progressive fixing:
     // - Attempt 1: Accept users with valid emails
@@ -96,7 +116,7 @@ const progressiveValidationTool = new DynamicStructuredTool({
         invalidItems.push({
           id: user.id,
           input: user,
-          error: error,
+          error,
           suggestion: attempt >= 2 ? `Fix: ${error}` : undefined,
         });
         console.log(`  ✗ ${user.id} failed: ${error}`);
@@ -181,12 +201,12 @@ async function demonstrateProgressiveReduction() {
     const result = await executeModelWithToolValidation({
       modelName: 'gemini-2.5-flash',
       tool: progressiveValidationTool,
-      messages: messages,
+      messages,
       temperature: 0.1,
       maxValidationAttempts: 5,
     });
 
-    console.log('\n' + '='.repeat(60));
+    console.log(`\n${'='.repeat(60)}`);
     console.log('✅ FINAL RESULT - All users validated!');
     console.log('='.repeat(60));
     console.log(JSON.stringify(result, null, 2));

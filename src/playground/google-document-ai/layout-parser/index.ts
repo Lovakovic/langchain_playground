@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
-import { DocumentProcessorServiceClient, protos } from '@google-cloud/documentai';
+import type { protos } from '@google-cloud/documentai';
+import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -171,11 +172,15 @@ function groupRelatedBlocks(blocks: IDocumentLayoutBlock[]): ContentBlock[][] {
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
-    if (!block) continue;
+    if (!block) {
+      continue;
+    }
 
     const text = getTextFromLayoutBlock(block);
 
-    if (!text.trim()) continue;
+    if (!text.trim()) {
+      continue;
+    }
 
     const prevBlock = i > 0 ? blocks[i - 1] : undefined;
     const nextBlock = i < blocks.length - 1 ? blocks[i + 1] : undefined;
@@ -230,10 +235,14 @@ function buildHierarchicalStructure(blockGroups: ContentBlock[][]): ContentBlock
   const sections: ContentBlock[] = [];
 
   for (const group of blockGroups) {
-    if (group.length === 0) continue;
+    if (group.length === 0) {
+      continue;
+    }
 
     const firstBlock = group[0];
-    if (!firstBlock) continue;
+    if (!firstBlock) {
+      continue;
+    }
 
     if (firstBlock.type === 'heading') {
       // Create section with heading
@@ -604,10 +613,10 @@ export class DocumentAIProcessor {
         `   - Multiple output formats: Text with delimiters, JSON, Markdown, Formatted text`,
       );
       console.log(`   - Correct page separation with enhanced text layout`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('💥 Top-level error occurred:');
-      if (error.details) {
-        console.error('🔍 gRPC Error Details:', error.details);
+      if (error && typeof error === 'object' && 'details' in error) {
+        console.error('🔍 gRPC Error Details:', (error as { details: unknown }).details);
       } else {
         console.error(error);
       }

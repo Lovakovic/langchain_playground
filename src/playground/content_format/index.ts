@@ -85,16 +85,18 @@ const main = async () => {
     try {
       const response1 = await model.invoke([systemMessage, multiContentMessage]);
       console.log(`${name} Response 1:`, response1.content);
-    } catch (error: any) {
-      console.log(`${name} Error 1:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(`${name} Error 1:`, errorMessage);
     }
 
     console.log(`\nTEST 2: Individual human messages`);
     try {
       const response2 = await model.invoke(individualMessages);
       console.log(`${name} Response 2:`, response2.content);
-    } catch (error: any) {
-      console.log(`${name} Error 2:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.log(`${name} Error 2:`, errorMessage);
     }
   }
 };

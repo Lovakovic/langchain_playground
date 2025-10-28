@@ -1,4 +1,4 @@
-import { ZodTypeAny } from 'zod';
+import type { ZodTypeAny } from 'zod';
 
 export type JSONSchemaDraft7Property =
   | { type: 'string'; description?: string; enum?: string[] }
