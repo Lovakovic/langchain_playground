@@ -39,3 +39,11 @@ These are **reference implementations** - quality and type safety are mandatory.
 - Bullet points only
 - Delete redundant content
 - Focus on critical rules and commands
+
+## README Files
+
+All README files in directories must be:
+- **Succinct and to-the-point** - signposts, not tutorials
+- **No code examples** - refer to actual example files instead
+- **Brief descriptions** - explain what's in each example, not how it works
+- Think: directory browser, not documentation

@@ -17,8 +17,9 @@
 7. [Execution Flow & Resuming](#execution-flow--resuming)
 8. [Using with `invoke` vs `stream`](#using-with-invoke-vs-stream)
 9. [Common Pitfalls](#common-pitfalls)
-10. [API Reference](#api-reference)
-11. [Best Practices](#best-practices)
+10. [The `task()` Utility for Durable Execution](#the-task-utility-for-durable-execution)
+11. [API Reference](#api-reference)
+12. [Best Practices](#best-practices)
 
 ---
 
@@ -80,7 +81,34 @@ function humanNode(state: State) {
 }
 ```
 
-### 2. Static Breakpoints (Legacy)
+### 2. The `task()` Utility for Side Effects
+
+Since nodes re-execute from the beginning when resuming, side effects (API
+calls, database writes, etc.) must be wrapped in `task()` to prevent duplicate
+execution:
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+
+const performAction = task('performAction', async (data: any) => {
+  return await apiCall(data);
+});
+
+async function nodeWithSideEffect(state: State) {
+  // ✅ Executes once, result cached on resume
+  const result = await performAction(state.data);
+
+  const approved = interrupt({ result });
+
+  return { result, approved };
+}
+```
+
+**Without `task()`:** Side effects execute every time the node runs (including
+on resume)  
+**With `task()`:** Side effects execute once, result is checkpointed and reused
+
+### 3. Static Breakpoints (Legacy)
 
 Static interrupts (`interrupt_before`, `interrupt_after`) are **not
 recommended** for HITL. They're best used for debugging and testing only.
@@ -666,7 +694,8 @@ await graph.invoke(new Command({ resume: userInput }), config);
 ### 1. Side Effects Before Interrupt
 
 **Problem:** Code with side effects (API calls, database writes) placed before
-`interrupt()` will execute **multiple times**.
+`interrupt()` will execute **multiple times** because nodes re-execute from the
+beginning when resuming.
 
 ❌ **Incorrect:**
 
@@ -680,20 +709,39 @@ function humanNode(state: State) {
 }
 ```
 
-✅ **Correct Option 1 - Place after interrupt:**
+✅ **Correct Option 1 - Use `task()` utility (Recommended):**
+
+```typescript
+import { interrupt, task } from '@langchain/langgraph';
+
+// Wrap the side effect in a task
+const performApiCall = task('apiCall', async (data: any) => {
+  return await apiCall(data);
+});
+
+async function humanNode(state: State) {
+  // ✅ Task ensures this only executes once, even on resume
+  await performApiCall(state.data);
+
+  const answer = interrupt('Approve?');
+  return { answer };
+}
+```
+
+✅ **Correct Option 2 - Place after interrupt:**
 
 ```typescript
 function humanNode(state: State) {
   const answer = interrupt('Approve?');
 
-  // ✅ Side effect happens only once
+  // ✅ Side effect happens only once (after interrupt)
   apiCall(answer);
 
   return { answer };
 }
 ```
 
-✅ **Correct Option 2 - Separate node:**
+✅ **Correct Option 3 - Separate node:**
 
 ```typescript
 function humanNode(state: State) {
@@ -702,7 +750,7 @@ function humanNode(state: State) {
 }
 
 function apiCallNode(state: State) {
-  // ✅ Side effect in separate node
+  // ✅ Side effect in separate node (won't re-execute)
   apiCall(state.answer);
 }
 
@@ -820,6 +868,598 @@ async function parentNode(state: State) {
 
 ---
 
+## The `task()` Utility for Durable Execution
+
+### Overview
+
+The `task()` utility is LangGraph's **official solution** for handling side
+effects and non-deterministic operations with interrupts. When you wrap
+operations in tasks, their results are **checkpointed** and **not re-executed**
+when the workflow resumes.
+
+### Why Use Tasks?
+
+When a node containing an `interrupt()` resumes, it **re-executes from the
+beginning**. This causes problems for:
+
+| Operation Type          | Problem                              | Solution         |
+| ----------------------- | ------------------------------------ | ---------------- |
+| **API Calls**           | Duplicate requests, wasted resources | Wrap in `task()` |
+| **Database Writes**     | Duplicate entries, data corruption   | Wrap in `task()` |
+| **File Operations**     | Multiple writes, inconsistent state  | Wrap in `task()` |
+| **Email/Notifications** | Duplicate messages sent              | Wrap in `task()` |
+| **Random Generation**   | Different values on resume           | Wrap in `task()` |
+| **Current Time**        | Inconsistent timestamps              | Wrap in `task()` |
+
+### Basic Usage
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+
+// Define a task - wraps a side effect
+const fetchUserData = task('fetchUserData', async (userId: string) => {
+  const response = await fetch(`/api/users/${userId}`);
+  return response.json();
+});
+
+// Use in a node
+async function approvalNode(state: State) {
+  // ✅ Task executes once, result is cached
+  const userData = await fetchUserData(state.userId);
+
+  // Interrupt for approval
+  const approved = interrupt({
+    question: 'Approve this user data?',
+    data: userData,
+  });
+
+  return { userData, approved };
+}
+```
+
+**Execution flow:**
+
+1. First run: `fetchUserData` executes → result saved to checkpoint → hits
+   `interrupt()`
+2. After resume: `fetchUserData` **skipped** (result loaded from checkpoint) →
+   `interrupt()` returns resume value
+
+---
+
+### Task Signature
+
+```typescript
+function task<Args extends any[], Result>(
+  name: string,
+  fn: (...args: Args) => Promise<Result>,
+): (...args: Args) => Promise<Result>;
+```
+
+**Parameters:**
+
+- `name` - Unique identifier for the task (used in checkpointing)
+- `fn` - Async function containing the side effect
+
+**Returns:** A wrapped version of the function that's checkpointed
+
+---
+
+### Multiple Tasks in One Node
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+
+const validateEmail = task('validateEmail', async (email: string) => {
+  const response = await fetch(`/api/validate-email`, {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+  return response.json();
+});
+
+const createAccount = task('createAccount', async (userData: any) => {
+  const response = await fetch(`/api/accounts`, {
+    method: 'POST',
+    body: JSON.stringify(userData),
+  });
+  return response.json();
+});
+
+async function signupNode(state: State) {
+  // ✅ Both tasks execute once
+  const validationResult = await validateEmail(state.email);
+
+  if (!validationResult.valid) {
+    return { error: 'Invalid email' };
+  }
+
+  const account = await createAccount({
+    email: state.email,
+    name: state.name,
+  });
+
+  // Interrupt for user to verify email
+  const verified = interrupt({
+    message: 'Check your email for verification code',
+    accountId: account.id,
+  });
+
+  return { account, verified };
+}
+```
+
+---
+
+### Tasks with Non-Deterministic Operations
+
+**Random Number Generation:**
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+
+const generateToken = task('generateToken', async () => {
+  return Math.random().toString(36).substr(2, 9);
+});
+
+async function sessionNode(state: State) {
+  // ✅ Same token returned on resume
+  const token = await generateToken();
+
+  const approved = interrupt({
+    message: 'Session created',
+    token: token,
+  });
+
+  return { token, approved };
+}
+```
+
+**Timestamp Generation:**
+
+```typescript
+const getCurrentTimestamp = task('getCurrentTimestamp', async () => {
+  return Date.now();
+});
+
+async function auditNode(state: State) {
+  // ✅ Same timestamp on resume, ensuring consistency
+  const timestamp = await getCurrentTimestamp();
+
+  const approved = interrupt({
+    action: state.action,
+    timestamp: new Date(timestamp).toISOString(),
+  });
+
+  return { timestamp, approved };
+}
+```
+
+---
+
+### Tasks for API Calls with Idempotency
+
+When working with external APIs, combine `task()` with idempotency keys:
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+import { v4 as uuidv4 } from 'uuid';
+
+const chargePayment = task(
+  'chargePayment',
+  async (params: {
+    amount: number;
+    currency: string;
+    idempotencyKey: string;
+  }) => {
+    const response = await fetch(`/api/payments/charge`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': params.idempotencyKey,
+      },
+      body: JSON.stringify({
+        amount: params.amount,
+        currency: params.currency,
+      }),
+    });
+
+    return response.json();
+  },
+);
+
+async function paymentNode(state: State) {
+  // Generate idempotency key once (outside task for consistency)
+  const idempotencyKey = state.idempotencyKey || uuidv4();
+
+  // ✅ Payment charged once, even on resume
+  const paymentResult = await chargePayment({
+    amount: state.amount,
+    currency: state.currency,
+    idempotencyKey,
+  });
+
+  const approved = interrupt({
+    question: 'Payment successful. Confirm order?',
+    payment: paymentResult,
+  });
+
+  return {
+    paymentResult,
+    approved,
+    idempotencyKey,
+  };
+}
+```
+
+---
+
+### Error Handling in Tasks
+
+Tasks can throw errors, which will be preserved in the checkpoint:
+
+```typescript
+const riskyApiCall = task('riskyApiCall', async (endpoint: string) => {
+  const response = await fetch(endpoint);
+
+  if (!response.ok) {
+    throw new Error(`API call failed: ${response.status}`);
+  }
+
+  return response.json();
+});
+
+async function nodeWithErrorHandling(state: State) {
+  try {
+    const data = await riskyApiCall(state.endpoint);
+
+    const approved = interrupt({
+      question: 'Data retrieved. Continue?',
+      data,
+    });
+
+    return { data, approved };
+  } catch (error) {
+    // Error is preserved across resume
+    return {
+      error: error.message,
+      failed: true,
+    };
+  }
+}
+```
+
+---
+
+### Task Results are JSON-Serializable
+
+Task return values must be JSON-serializable:
+
+```typescript
+// ✅ Good - JSON-serializable
+const fetchJson = task('fetchJson', async () => {
+  return {
+    name: 'John',
+    age: 30,
+    items: ['a', 'b', 'c'],
+  };
+});
+
+// ❌ Bad - Functions not serializable
+const fetchFn = task('fetchFn', async () => {
+  return {
+    data: 'value',
+    handler: () => console.log('Hi'), // ❌ Function not serializable
+  };
+});
+
+// ✅ Good - Convert to serializable format
+const fetchUser = task('fetchUser', async (id: string) => {
+  const user = await getUserFromDb(id); // May have methods
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    // Extract only serializable properties
+  };
+});
+```
+
+---
+
+### Tasks vs Separate Nodes
+
+**When to use tasks:**
+
+- Single node with multiple side effects
+- Side effects that logically belong together
+- Need to maintain transaction-like behavior
+- Working with Functional API style
+
+**When to use separate nodes:**
+
+- Side effect should be a distinct step in workflow
+- Want clear visualization in graph
+- Need conditional routing after side effect
+- Following traditional StateGraph patterns
+
+**Example - Same logic, two approaches:**
+
+```typescript
+// Approach 1: Using tasks
+async function orderNode(state: State) {
+  const validated = await validateOrder(state.order);
+  const reserved = await reserveInventory(state.items);
+
+  const approved = interrupt({ validated, reserved });
+
+  const charged = await chargeCard(state.payment);
+
+  return { validated, reserved, charged, approved };
+}
+
+// Approach 2: Using separate nodes
+function validateNode(state: State) {
+  const validated = validateOrder(state.order);
+  return { validated };
+}
+
+function reserveNode(state: State) {
+  const reserved = reserveInventory(state.items);
+  return { reserved };
+}
+
+function approvalNode(state: State) {
+  const approved = interrupt({
+    validated: state.validated,
+    reserved: state.reserved,
+  });
+  return { approved };
+}
+
+function chargeNode(state: State) {
+  const charged = chargeCard(state.payment);
+  return { charged };
+}
+```
+
+---
+
+### Tasks in Conditional Logic
+
+Tasks work naturally with branches and loops:
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+
+const attemptConnection = task(
+  'attemptConnection',
+  async (endpoint: string) => {
+    const response = await fetch(endpoint);
+    return {
+      success: response.ok,
+      status: response.status,
+    };
+  },
+);
+
+async function retryNode(state: State) {
+  let attempts = 0;
+  let result;
+
+  while (attempts < 3) {
+    result = await attemptConnection(state.endpoint);
+
+    if (result.success) {
+      break;
+    }
+
+    attempts++;
+  }
+
+  const approved = interrupt({
+    question: `Connection ${result.success ? 'succeeded' : 'failed'} after ${attempts} attempts. Continue?`,
+    result,
+  });
+
+  return { result, approved, attempts };
+}
+```
+
+---
+
+### Combining Tasks with Command
+
+Tasks work seamlessly with the `Command` primitive for routing:
+
+```typescript
+import { task, interrupt, Command } from '@langchain/langgraph';
+
+const checkRiskLevel = task('checkRiskLevel', async (data: any) => {
+  const response = await fetch('/api/risk-check', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return response.json();
+});
+
+async function riskAssessmentNode(state: State): Promise<Command> {
+  // ✅ Risk check happens once
+  const riskResult = await checkRiskLevel({
+    userId: state.userId,
+    amount: state.amount,
+  });
+
+  if (riskResult.level === 'high') {
+    const approved = interrupt({
+      warning: 'High risk transaction detected',
+      details: riskResult,
+    });
+
+    if (approved) {
+      return new Command({ goto: 'process_transaction' });
+    } else {
+      return new Command({ goto: 'cancel_transaction' });
+    }
+  }
+
+  // Low risk, proceed without approval
+  return new Command({
+    goto: 'process_transaction',
+    update: { riskChecked: true },
+  });
+}
+```
+
+---
+
+### Debugging Tasks
+
+Tasks appear in LangSmith traces with their execution time and results:
+
+```typescript
+const slowOperation = task('slowOperation', async (data: any) => {
+  console.log('[Task Start] slowOperation');
+  const result = await expensiveComputation(data);
+  console.log('[Task Complete] slowOperation:', result);
+  return result;
+});
+```
+
+When viewing traces in LangSmith:
+
+- Task executions are clearly marked
+- Can see which tasks were skipped (loaded from checkpoint)
+- View individual task execution times
+- Inspect task results at each checkpoint
+
+---
+
+### Best Practices with Tasks
+
+1. **Name tasks descriptively:**
+
+```typescript
+// ✅ Good
+const validateUserEmail = task("validateUserEmail", ...);
+const chargePaymentCard = task("chargePaymentCard", ...);
+
+// ❌ Bad
+const task1 = task("task1", ...);
+const doStuff = task("doStuff", ...);
+```
+
+2. **Keep tasks focused:**
+
+```typescript
+// ✅ Good - Single responsibility
+const sendEmail = task('sendEmail', async (to, subject, body) => {
+  return await emailService.send({ to, subject, body });
+});
+
+// ❌ Bad - Too many responsibilities
+const doEverything = task('doEverything', async (data) => {
+  await sendEmail(data.email);
+  await updateDatabase(data.id);
+  await notifySlack(data.message);
+  // Too much in one task
+});
+```
+
+3. **Pass serializable arguments:**
+
+```typescript
+// ✅ Good
+const processData = task(
+  'processData',
+  async (data: { id: string; amount: number; items: string[] }) => {
+    // ...
+  },
+);
+
+// ❌ Bad - Non-serializable argument
+const processData = task('processData', async (callback: Function) => {
+  // Functions can't be checkpointed
+});
+```
+
+4. **Use tasks for all external calls:**
+
+```typescript
+async function orderProcessingNode(state: State) {
+  // ✅ All side effects wrapped
+  const validated = await validateInventory(state.items);
+  const authorized = await authorizePayment(state.card);
+  const created = await createOrder(state.orderData);
+
+  const approved = interrupt({ validated, authorized, created });
+
+  if (approved) {
+    await sendConfirmationEmail(state.email);
+  }
+
+  return { validated, authorized, created, approved };
+}
+```
+
+---
+
+### Migration: Before and After Tasks
+
+**Before (problematic):**
+
+```typescript
+async function problematicNode(state: State) {
+  // ⚠️ API call happens on EVERY resume
+  const data = await fetch('/api/data').then((r) => r.json());
+
+  const approved = interrupt({ data });
+
+  // ⚠️ If resumed multiple times, duplicate writes
+  await fetch('/api/save', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+  return { data, approved };
+}
+```
+
+**After (fixed with tasks):**
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+
+const fetchData = task('fetchData', async () => {
+  const response = await fetch('/api/data');
+  return response.json();
+});
+
+const saveData = task('saveData', async (data: any) => {
+  const response = await fetch('/api/save', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return response.json();
+});
+
+async function fixedNode(state: State) {
+  // ✅ Executes once, cached on resume
+  const data = await fetchData();
+
+  const approved = interrupt({ data });
+
+  // ✅ Only executes if approved
+  if (approved) {
+    await saveData(data);
+  }
+
+  return { data, approved };
+}
+```
+
+---
+
 ## API Reference
 
 ### `interrupt(value: T): T`
@@ -841,6 +1481,51 @@ const userInput = interrupt({
   prompt: 'Enter your email',
   validation: 'Must be valid email',
 });
+```
+
+---
+
+### `task(name: string, fn: (...args) => Promise<Result>): (...args) => Promise<Result>`
+
+**Purpose:** Wrap side effects and non-deterministic operations to ensure they
+execute only once, even during workflow resumption.
+
+**Parameters:**
+
+- `name` - Unique identifier for the task (used in checkpointing)
+- `fn` - Async function containing the side effect or non-deterministic
+  operation
+
+**Returns:** A wrapped version of the function that's checkpointed
+
+**Key Features:**
+
+- Results are saved to checkpoints
+- On resume, returns cached result instead of re-executing
+- Works with both StateGraph nodes and Functional API
+- Task results must be JSON-serializable
+
+**Example:**
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+
+const sendEmail = task('sendEmail', async (to: string, subject: string) => {
+  const response = await emailService.send({ to, subject });
+  return { messageId: response.id, sent: true };
+});
+
+async function notificationNode(state: State) {
+  // ✅ Email sent once, result cached on resume
+  const result = await sendEmail(state.email, 'Approval Needed');
+
+  const approved = interrupt({
+    message: 'Email sent. Approve?',
+    messageId: result.messageId,
+  });
+
+  return { emailSent: true, approved };
+}
 ```
 
 ---
@@ -924,7 +1609,53 @@ When using `getState()`, the returned object includes:
 
 ## Best Practices
 
-### 1. Use Descriptive Interrupt Values
+### 1. Always Use Tasks for Side Effects
+
+**Most Important:** Wrap all side effects in `task()` to prevent duplicate
+execution:
+
+```typescript
+import { task, interrupt } from '@langchain/langgraph';
+
+// ✅ Best Practice
+const performDatabaseWrite = task('performDatabaseWrite', async (data) => {
+  return await db.insert(data);
+});
+
+const callExternalAPI = task('callExternalAPI', async (endpoint) => {
+  return await fetch(endpoint).then((r) => r.json());
+});
+
+async function dataProcessingNode(state: State) {
+  const apiData = await callExternalAPI(state.endpoint);
+
+  const approved = interrupt({ data: apiData });
+
+  if (approved) {
+    await performDatabaseWrite(apiData);
+  }
+
+  return { apiData, approved };
+}
+
+// ❌ Bad Practice
+async function problematicNode(state: State) {
+  // These will execute multiple times on resume!
+  const apiData = await fetch(state.endpoint).then((r) => r.json());
+
+  const approved = interrupt({ data: apiData });
+
+  if (approved) {
+    await db.insert(apiData); // Duplicate writes!
+  }
+
+  return { apiData, approved };
+}
+```
+
+---
+
+### 2. Use Descriptive Interrupt Values
 
 ❌ Bad:
 
@@ -950,7 +1681,33 @@ const value = interrupt({
 
 ---
 
-### 2. Structure Resume Values
+### 2. Use Descriptive Interrupt Values
+
+❌ Bad:
+
+```typescript
+const value = interrupt('yes or no?');
+```
+
+✅ Good:
+
+```typescript
+const value = interrupt({
+  type: 'approval_request',
+  question: 'Approve database deletion?',
+  action: {
+    type: 'delete',
+    database: 'production_db',
+    records: 15000,
+  },
+  impact: 'high',
+  reversible: false,
+});
+```
+
+---
+
+### 3. Structure Resume Values
 
 For complex approvals, use structured objects:
 
@@ -977,7 +1734,7 @@ await graph.invoke(
 
 ---
 
-### 3. Always Use Production Checkpointers
+### 4. Always Use Production Checkpointers
 
 ```typescript
 // ❌ Development only
@@ -991,7 +1748,7 @@ const checkpointer = PostgresSaver.fromConnString(process.env.DB_URI);
 
 ---
 
-### 4. Handle Thread IDs Properly
+### 5. Handle Thread IDs Properly
 
 ```typescript
 // Generate unique thread IDs per conversation
@@ -1008,7 +1765,7 @@ const config = {
 
 ---
 
-### 5. Validate Resume Values
+### 6. Validate Resume Values
 
 ```typescript
 function approvalNode(state: State): Command {
@@ -1027,7 +1784,7 @@ function approvalNode(state: State): Command {
 
 ---
 
-### 6. Provide Clear User Feedback
+### 7. Provide Clear User Feedback
 
 ```typescript
 const review = interrupt({
@@ -1047,7 +1804,7 @@ const review = interrupt({
 
 ---
 
-### 7. Handle Timeouts Gracefully
+### 8. Handle Timeouts Gracefully
 
 Since interrupts wait indefinitely, implement timeout logic in your application:
 
@@ -1067,7 +1824,7 @@ clearTimeout(timeout);
 
 ---
 
-### 8. Log Interrupt Events
+### 9. Log Interrupt Events
 
 ```typescript
 function approvalNode(state: State): Command {
@@ -1091,7 +1848,7 @@ function approvalNode(state: State): Command {
 
 ---
 
-### 9. Design for Async Human Response
+### 10. Design for Async Human Response
 
 ```typescript
 // Backend API endpoint
@@ -1115,7 +1872,7 @@ app.post('/resume/:threadId', async (req, res) => {
 
 ---
 
-### 10. Test Interrupt Flows
+### 11. Test Interrupt Flows
 
 ```typescript
 import { describe, it, expect } from '@jest/globals';
@@ -1223,12 +1980,48 @@ Human-in-the-Loop in LangGraph JS provides a robust, production-ready way to
 integrate human oversight into AI workflows. Key takeaways:
 
 ✅ **Use `interrupt()`** for all HITL workflows (official as of v1.0)  
+✅ **Wrap side effects in `task()`** to prevent duplicate execution on resume  
 ✅ **Always enable checkpointing** with a persistent store in production  
 ✅ **Use `Command` objects** to resume with complex logic  
-✅ **Avoid side effects** before `interrupt()` calls  
+✅ **Avoid side effects before `interrupt()`** unless wrapped in `task()`  
 ✅ **Structure interrupt payloads** for clear communication  
 ✅ **Handle resumption properly** - nodes re-execute from the start  
 ✅ **Test thoroughly** with different approval/rejection scenarios
 
-HITL enables you to build reliable, trustworthy AI agents that combine
-automation with human expertise at critical decision points.
+The combination of `interrupt()`, `task()`, and `Command` enables you to build
+reliable, trustworthy AI agents that combine automation with human expertise at
+critical decision points, while ensuring side effects execute exactly once.
+
+---
+
+**Key Pattern:**
+
+```typescript
+import { task, interrupt, Command } from '@langchain/langgraph';
+
+// Wrap side effects
+const apiCall = task('apiCall', async (data) => {
+  return await fetch('/api/action', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+});
+
+// Use in node with interrupt
+async function approvalNode(state: State): Promise<Command> {
+  // ✅ Executes once, cached on resume
+  const result = await apiCall(state.data);
+
+  // Pause for human approval
+  const approved = interrupt({
+    question: 'Approve this action?',
+    result,
+  });
+
+  // Route based on approval
+  return new Command({
+    goto: approved ? 'execute' : 'cancel',
+    update: { result, approved },
+  });
+}
+```
